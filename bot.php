@@ -4,11 +4,11 @@
 // ==========================
 
 // Токен бота от BotFather
-$token  = '7854808857:AAHmleyDhVZvpBrQXG1YiVbMl9gBfXak1xY';
+$token  = '7904822043:AAEXldRBh1UxT3L3Cv2o1IPxJuNWfl9tzSw';
 $apiUrl = "https://api.telegram.org/bot{$token}/";
 
 // URL Mini App (index.html с ЛК)
-$miniAppUrl = "https://pandoroom.tech/telegramm/index.html?v=" . time();// поменяй при необходимости
+$miniAppUrl = "https://pandoroom.tech/telegramm/index.html?v=" . time(); // как в старом файле
 
 // ID менеджеров (chat_id в Telegram) – сейчас используются только для отдельных уведомлений
 $managers = [
@@ -16,19 +16,19 @@ $managers = [
 ];
 
 // ID группы/супергруппы, где будет жить техподдержка (ФОРУМ с темами)
-define('SUPPORT_CHAT_ID', -1003304052055); // твоя группа CRM Pandoroom ❤ mini
+define('SUPPORT_CHAT_ID', -1003492911654); // твоя группа CRM Pandoroom ❤ mini
 
 // Файл для хранения связки chat_id → phone
-$userStorageFile = __DIR__ . '/users.json';
+$userStorageFile = __DIR__ . '/../users.json';
 
 // Файл для хранения связки user_id ↔ forum topics (message_thread_id)
-$supportThreadsFile = __DIR__ . '/support_threads.json';
+$supportThreadsFile = __DIR__ . '/../support_threads.json';
 
 // Файл связок сообщений клиент ↔ тикет
-$messageLinksFile = __DIR__ . '/message_links.json';
+$messageLinksFile = __DIR__ . '/../message_links.json';
 
 // Файл для хранения исходящих сообщений бота клиенту
-$botMessagesFile = __DIR__ . '/bot_messages.json';
+$botMessagesFile = __DIR__ . '/../bot_messages.json';
 
 // Базовый URL API на pandoroom.org
 $orgApiBase = 'https://pandoroom.org/pandoroom-api/';
