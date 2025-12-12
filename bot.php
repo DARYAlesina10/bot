@@ -1543,7 +1543,9 @@ function buildManagerReplyKeyboard() {
         'resize_keyboard'       => true,
         'one_time_keyboard'     => false,
         'is_persistent'         => true,
-        'selective'             => true,
+        // Нельзя ограничивать показ в треде, иначе клавиатура не появится у менеджеров
+        // при отправке служебного сообщения — делаем её публичной внутри темы.
+        'selective'             => false,
         'input_field_placeholder' => 'Быстрые действия для менеджера',
     ];
 }
