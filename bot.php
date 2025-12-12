@@ -4,11 +4,11 @@
 // ==========================
 
 // Токен бота от BotFather
-$token  = '7904822043:AAEXldRBh1UxT3L3Cv2o1IPxJuNWfl9tzSw';
+$token  = '7854808857:AAHmleyDhVZvpBrQXG1YiVbMl9gBfXak1xY';
 $apiUrl = "https://api.telegram.org/bot{$token}/";
 
 // URL Mini App (index.html с ЛК)
-$miniAppUrl = "https://pandoroom.tech/telegramm/index.html?v=" . time(); // как в старом файле
+$miniAppUrl = 'https://pandoroom.tech/telegramm/index.html'; // поменяй при необходимости
 
 // ID менеджеров (chat_id в Telegram) – сейчас используются только для отдельных уведомлений
 $managers = [
@@ -16,7 +16,7 @@ $managers = [
 ];
 
 // ID группы/супергруппы, где будет жить техподдержка (ФОРУМ с темами)
-define('SUPPORT_CHAT_ID', -1003492911654); // твоя группа CRM Pandoroom ❤ mini
+define('SUPPORT_CHAT_ID', -1003304052055); // твоя группа CRM Pandoroom ❤ mini
 
 // Файл для хранения связки chat_id → phone
 $userStorageFile = __DIR__ . '/users.json';
