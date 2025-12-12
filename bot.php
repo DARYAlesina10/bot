@@ -1075,6 +1075,77 @@ function getEventInfoByPhone($phone) {
     ];
 }
 
+function buildInvitationLink($phone)
+{
+    $event = getEventInfoByPhone($phone);
+    if (!$event) {
+        return ['error' => 'Не найдено ближайшее мероприятие для клиента.'];
+    }
+
+    $dateHuman = trim($event['date'] ?? '');
+    $time      = trim($event['time_from'] ?? '');
+
+    if ($time === '' && !empty($event['time'])) {
+        $time = trim($event['time']);
+    }
+
+    if ($dateHuman === '' || $time === '') {
+        return ['error' => 'Не хватает даты или времени мероприятия для ссылки.'];
+    }
+
+    $dateIso = null;
+    $dt = DateTime::createFromFormat('d.m.Y', $dateHuman);
+    if ($dt instanceof DateTime) {
+        $dateIso = $dt->format('Y-m-d');
+    } else {
+        $ts = strtotime($dateHuman);
+        if ($ts !== false) {
+            $dateIso = date('Y-m-d', $ts);
+        }
+    }
+
+    if (!$dateIso) {
+        return ['error' => 'Не удалось преобразовать дату мероприятия.'];
+    }
+
+    $cleanPhone = preg_replace('/\D+/', '', (string)$phone);
+    if ($cleanPhone === '') {
+        $cleanPhone = (string)$phone;
+    }
+
+    $params = [
+        'datx' => $dateHuman,
+        'vr'   => $time,
+        'vrr'  => $dateIso,
+        'tel'  => $cleanPhone,
+    ];
+
+    $url = 'https://pandoroom.org/priglashu.php?' . http_build_query($params);
+    $resp = httpRequest($url, null, [], 7);
+
+    if (!is_string($resp) || trim($resp) === '') {
+        return ['error' => 'Не удалось получить ссылку приглашения.'];
+    }
+
+    $link = null;
+    if (preg_match('~https?://\S+~', $resp, $m)) {
+        $link = trim(rtrim($m[0], '"\'">')); // убираем возможные хвосты
+    } else {
+        $link = trim($resp);
+    }
+
+    if ($link === '') {
+        return ['error' => 'Ответ без ссылки приглашения.'];
+    }
+
+    return [
+        'link' => $link,
+        'date' => $dateHuman,
+        'time' => $time,
+        'url'  => $url,
+    ];
+}
+
 
 
 
@@ -1573,6 +1644,7 @@ function buildManagerReplyKeyboard() {
             ],
             [
                 ['text' => '📥 Сообщения бота'],
+                ['text' => '🔗 Ссылка приглашения'],
             ],
         ],
         'resize_keyboard'       => true,
@@ -1598,6 +1670,7 @@ function buildManagerInlineKeyboard() {
             ],
             [
                 ['text' => '📥 Сообщения бота', 'callback_data' => 'mgr_action:load_history'],
+                ['text' => '🔗 Приглашение', 'callback_data' => 'mgr_action:invite_link'],
             ],
         ],
     ];
@@ -1706,6 +1779,7 @@ function mapManagerActionByText($text)
         '💰 Бонусы'           => 'client_bonus',
         '✅ Закрыть диалог'   => 'client_close',
         '📥 Сообщения бота'   => 'load_history',
+        '🔗 Ссылка приглашения' => 'invite_link',
     ];
 
     return $map[$text] ?? null;
@@ -1822,6 +1896,69 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
                 'message_thread_id' => $threadId,
                 'text'              => $text,
             ]);
+            break;
+
+        case 'invite_link':
+            $phone = $resolvedPhone;
+            if (!$phone) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Телефон клиента не определён, не можем сформировать приглашение.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
+            $invite = buildInvitationLink($phone);
+            if (isset($invite['error'])) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не удалось получить ссылку приглашения: ' . $invite['error'],
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
+            $link = $invite['link'];
+            $date = $invite['date'] ?? '';
+            $time = $invite['time'] ?? '';
+
+            $clientText = "📩 Приглашение на мероприятие";
+            if ($date || $time) {
+                $clientText .= " ({$date} {$time})";
+            }
+            $clientText .= ":\n" . $link;
+
+            $respJson = tgRequest('sendMessage', [
+                'chat_id' => $userId,
+                'text'    => $clientText,
+            ]);
+            $resp = $respJson ? json_decode($respJson, true) : null;
+
+            if (!empty($resp['ok']) && !empty($resp['result']['message_id'])) {
+                log_bot_message($userId, (int)$resp['result']['message_id'], $clientText, 'system');
+
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => "Ссылка приглашения отправлена клиенту.\n{$link}",
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+            } else {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не получилось отправить ссылку клиенту, попробуйте ещё раз.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+            }
+
             break;
 
         case 'load_history':
