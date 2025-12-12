@@ -737,6 +737,7 @@ function support_register_thread($userId, $threadId) {
         'created_at'      => $now,
         'last_user_msg_at'=> $now,
         'last_notify_at'  => 0,
+        'last_keyboard_at'=> 0,
     ];
 
     support_save_store($store);
@@ -1550,6 +1551,37 @@ function buildManagerReplyKeyboard() {
     ];
 }
 
+function sendManagerKeyboardToThread($threadId, $text = 'Меню менеджера для работы с клиентом:') {
+    $managerKeyboard = buildManagerReplyKeyboard();
+
+    $respJson = tgRequest('sendMessage', [
+        'chat_id'           => SUPPORT_CHAT_ID,
+        'message_thread_id' => $threadId,
+        'text'              => $text,
+        'reply_markup'      => json_encode($managerKeyboard, JSON_UNESCAPED_UNICODE),
+    ]);
+
+    $resp = $respJson ? json_decode($respJson, true) : null;
+    return (bool)($resp['ok'] ?? false);
+}
+
+function maybeSendManagerKeyboard($userId, $threadId, $force = false) {
+    $thread = support_get_thread_by_user($userId);
+    $last   = (int)($thread['last_keyboard_at'] ?? 0);
+    $now    = time();
+
+    if (!$force && $last !== 0 && ($now - $last) < 300) {
+        return false;
+    }
+
+    $sent = sendManagerKeyboardToThread($threadId);
+    if ($sent) {
+        support_update_thread($userId, ['last_keyboard_at' => $now]);
+    }
+
+    return $sent;
+}
+
 function mapManagerActionByText($text)
 {
     $text = trim((string)$text);
@@ -1976,6 +2008,7 @@ function handleUserSupportMessage($message) {
         ]);
 
         support_register_thread($userId, $threadId);
+        support_update_thread($userId, ['last_keyboard_at' => time()]);
         return true;
     };
 
@@ -1998,12 +2031,7 @@ function handleUserSupportMessage($message) {
 
     // 3) Если надо показать кнопки в уже существующем треде — шлём служебное сообщение с меню
     if ($needShowKeyboard && !$needCreateTopic && $threadId) {
-        tgRequest('sendMessage', [
-            'chat_id'           => SUPPORT_CHAT_ID,
-            'message_thread_id' => $threadId,
-            'text'              => 'Меню менеджера для работы с клиентом:',
-            'reply_markup'      => json_encode($managerKeyboard, JSON_UNESCAPED_UNICODE),
-        ]);
+        maybeSendManagerKeyboard($userId, $threadId, true);
     }
 
     // Обновляем мету по треду
@@ -2044,6 +2072,9 @@ function handleManagerMessage($message) {
     if (!$userId) {
         return;
     }
+
+    // Всегда стараемся держать меню под рукой в треде
+    maybeSendManagerKeyboard($userId, $threadId);
 
     $from        = $message['from'] ?? [];
     $managerName = trim(
