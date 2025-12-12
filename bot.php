@@ -1585,6 +1585,24 @@ function buildManagerReplyKeyboard() {
     ];
 }
 
+function buildManagerInlineKeyboard() {
+    return [
+        'inline_keyboard' => [
+            [
+                ['text' => '🎭 Квесты', 'callback_data' => 'mgr_action:client_quests'],
+                ['text' => '🎉 Мероприятия', 'callback_data' => 'mgr_action:client_event'],
+            ],
+            [
+                ['text' => '💰 Бонусы', 'callback_data' => 'mgr_action:client_bonus'],
+                ['text' => '✅ Закрыть', 'callback_data' => 'mgr_action:client_close'],
+            ],
+            [
+                ['text' => '📥 Сообщения бота', 'callback_data' => 'mgr_action:load_history'],
+            ],
+        ],
+    ];
+}
+
 function sendManagerKeyboardToThread($threadId, $text = 'Меню менеджера для работы с клиентом:') {
     $managerKeyboard = buildManagerReplyKeyboard();
 
@@ -1593,6 +1611,20 @@ function sendManagerKeyboardToThread($threadId, $text = 'Меню менедже
         'message_thread_id' => $threadId,
         'text'              => $text,
         'reply_markup'      => json_encode($managerKeyboard, JSON_UNESCAPED_UNICODE),
+    ]);
+
+    $resp = $respJson ? json_decode($respJson, true) : null;
+    return (bool)($resp['ok'] ?? false);
+}
+
+function sendManagerInlineMenuToThread($threadId, $text = 'Если клавиатура не отобразилась, используйте кнопки ниже:') {
+    $inlineKeyboard = buildManagerInlineKeyboard();
+
+    $respJson = tgRequest('sendMessage', [
+        'chat_id'           => SUPPORT_CHAT_ID,
+        'message_thread_id' => $threadId,
+        'text'              => $text,
+        'reply_markup'      => json_encode($inlineKeyboard, JSON_UNESCAPED_UNICODE),
     ]);
 
     $resp = $respJson ? json_decode($respJson, true) : null;
@@ -1624,8 +1656,10 @@ function maybeSendManagerKeyboard($threadId, $userId = null, $force = false) {
         return false;
     }
 
-    $sent = sendManagerKeyboardToThread($threadId);
-    if ($sent) {
+    $sentReply  = sendManagerKeyboardToThread($threadId);
+    $sentInline = sendManagerInlineMenuToThread($threadId);
+
+    if ($sentReply || $sentInline) {
         if ($userId) {
             support_update_thread($userId, ['last_keyboard_at' => $now]);
         } elseif ($threadMeta) {
@@ -1633,7 +1667,7 @@ function maybeSendManagerKeyboard($threadId, $userId = null, $force = false) {
         }
     }
 
-    return $sent;
+    return $sentReply || $sentInline;
 }
 
 function mapManagerActionByText($text)
@@ -2388,11 +2422,16 @@ function handleCallbackQuery($callback) {
         ]);
     }
 
-    $parts  = explode(':', $data, 2);
-    $action = $parts[0] ?? '';
-    $userId = isset($parts[1]) ? (int)$parts[1] : 0;
+    $userIdFromData = 0;
+    if (strpos($data, 'mgr_action:') === 0) {
+        $action = substr($data, strlen('mgr_action:'));
+    } else {
+        $parts  = explode(':', $data, 2);
+        $action = $parts[0] ?? '';
+        $userIdFromData = isset($parts[1]) ? (int)$parts[1] : 0;
+    }
 
-    $context = resolveThreadUserContext($threadId, $userId ?: null);
+    $context = resolveThreadUserContext($threadId, $userIdFromData ?: null);
     $userId  = $context['user_id'];
     $phone   = $context['phone'];
 
