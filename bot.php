@@ -2083,6 +2083,17 @@ function handleCallbackQuery($callback) {
     $parts  = explode(':', $data, 2);
     $action = $parts[0] ?? '';
     $userId = isset($parts[1]) ? (int)$parts[1] : 0;
+
+    // Если в callback не передали user_id (или он не распарсился),
+    // пробуем достать его по message_thread_id. Иначе кнопки в треде
+    // менеджеров будут «немыми».
+    if (!$userId && $threadId) {
+        $mappedUserId = support_find_user_by_thread($threadId);
+        if ($mappedUserId) {
+            $userId = (int)$mappedUserId;
+        }
+    }
+
     if (!$userId) {
         return;
     }
