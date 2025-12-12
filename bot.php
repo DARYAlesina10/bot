@@ -1525,6 +1525,196 @@ function sendUserGifts($chatId, $phone) {
 //  ЖИВОЙ ЧАТ С МЕНЕДЖЕРАМИ (FORUM TOPICS)
 // ==========================
 
+function buildManagerReplyKeyboard() {
+    return [
+        'keyboard' => [
+            [
+                ['text' => '🎭 Квесты клиента'],
+                ['text' => '🎉 Мероприятия'],
+            ],
+            [
+                ['text' => '💰 Бонусы'],
+                ['text' => '✅ Закрыть диалог'],
+            ],
+            [
+                ['text' => '📥 Сообщения бота'],
+            ],
+        ],
+        'resize_keyboard'       => true,
+        'one_time_keyboard'     => false,
+        'is_persistent'         => true,
+        'selective'             => true,
+        'input_field_placeholder' => 'Быстрые действия для менеджера',
+    ];
+}
+
+function mapManagerActionByText($text)
+{
+    $text = trim((string)$text);
+
+    $map = [
+        '🎭 Квесты клиента'  => 'client_quests',
+        '🎉 Мероприятия'      => 'client_event',
+        '💰 Бонусы'           => 'client_bonus',
+        '✅ Закрыть диалог'   => 'client_close',
+        '📥 Сообщения бота'   => 'load_history',
+    ];
+
+    return $map[$text] ?? null;
+}
+
+function performManagerAction($action, $userId, $threadId, array $context = [])
+{
+    $callbackId     = $context['callback_id']     ?? null;
+    $replyToMessage = $context['reply_to_message'] ?? null;
+
+    switch ($action) {
+        case 'client_close':
+            support_update_thread($userId, ['status' => 'closed']);
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => "Диалог с клиентом закрыт ✅",
+            ]);
+            break;
+
+        case 'client_quests':
+            $phone = getUserPhone($userId);
+            if (!$phone) {
+                $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
+            } else {
+                $quests = getQuestsDetailedByPhone($phone);
+                if (isset($quests['error'])) {
+                    $text = "Квесты клиента: " . $quests['error'];
+                } elseif (!$quests) {
+                    $text = "Квестов по этому номеру не найдено.";
+                } else {
+                    $lines = ["Квесты клиента (макс. 5):"];
+                    $count = 0;
+                    foreach ($quests as $q) {
+                        $title  = $q['title'] ?? 'Квест';
+                        $time   = $q['time'] ?? ($q['datetime'] ?? ($q['book_time'] ?? ''));
+                        $status = $q['status'] ?? '';
+
+                        $line = "• {$title}";
+                        if ($time)   $line .= " — {$time}";
+                        if ($status) $line .= " ({$status})";
+
+                        $lines[] = $line;
+                        $count++;
+                        if ($count >= 5) break;
+                    }
+                    $text = implode("\n", $lines);
+                }
+            }
+
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => $text,
+            ]);
+            break;
+
+        case 'client_event':
+            $phone = getUserPhone($userId);
+            if (!$phone) {
+                $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
+            } else {
+                $event = getEventInfoByPhone($phone);
+                if (!$event) {
+                    $text = "Ближайший праздник клиента не найден.";
+                } else {
+                    $text =
+                        "🎉 Праздник клиента:\n\n" .
+                        "Дата: {$event['date']}\n" .
+                        "Время: {$event['time_from']}–{$event['time_to']}\n" .
+                        "Зал / зона: {$event['hall']}\n" .
+                        "Гостей: {$event['guests']}\n" .
+                        "Именинник: {$event['imen']} ({$event['age']} лет)";
+                }
+            }
+
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => $text,
+            ]);
+            break;
+
+        case 'client_bonus':
+            $phone = getUserPhone($userId);
+            if (!$phone) {
+                $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
+            } else {
+                $bonus = getBonusInfoByPhone($phone);
+                if (!$bonus) {
+                    $text = "Не удалось получить информацию о бонусах клиента.";
+                } else {
+                    $text = "💰 Бонусы клиента: {$bonus['balance']} руб.";
+                    if (!empty($bonus['expires'])) {
+                        $text .= "\nДействительны до: {$bonus['expires']}";
+                    }
+                }
+            }
+
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => $text,
+            ]);
+            break;
+
+        case 'load_history':
+            $history = get_last_bot_system_messages($userId, 3);
+
+            if (!$history) {
+                if ($callbackId) {
+                    tgRequest('answerCallbackQuery', [
+                        'callback_query_id' => $callbackId,
+                        'text'              => 'Ранее отправленных сообщений бота нет.',
+                        'show_alert'        => false,
+                    ]);
+                } else {
+                    tgRequest('sendMessage', [
+                        'chat_id'           => SUPPORT_CHAT_ID,
+                        'message_thread_id' => $threadId,
+                        'text'              => 'Ранее отправленных сообщений бота нет.',
+                        'reply_to_message_id' => $replyToMessage,
+                        'allow_sending_without_reply' => true,
+                    ]);
+                }
+                return;
+            }
+
+            if ($callbackId) {
+                tgRequest('answerCallbackQuery', [
+                    'callback_query_id' => $callbackId,
+                    'text'              => 'Загружаю последние сообщения бота клиенту…',
+                    'show_alert'        => false,
+                ]);
+            }
+
+            foreach ($history as $row) {
+                $txt = (string)($row['text'] ?? '');
+                if ($txt === '') {
+                    $txt = '[пустое сообщение]';
+                }
+                $out = "🕓 Ранее бот отправлял клиенту:\n" . $txt;
+
+                tgRequest('sendMessage', [
+                    'chat_id'                => SUPPORT_CHAT_ID,
+                    'message_thread_id'      => $threadId,
+                    'text'                   => $out,
+                    'parse_mode'             => 'HTML',
+                    'reply_to_message_id'    => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+            }
+
+            break;
+    }
+}
+
 /**
  * Вспомогательная: прокинуть конкретное сообщение клиента в тред
  * (текст / фото / документ) + записать связку сообщений.
@@ -1725,30 +1915,7 @@ function handleUserSupportMessage($message) {
     }
 
     // Кнопки для менеджера (отдельно, на "Новый диалог")
-    $managerKeyboard = [
-        'inline_keyboard' => [
-            [
-                [
-                    'text'          => '🎭 Квесты клиента',
-                    'callback_data' => 'client_quests:' . $userId,
-                ],
-                [
-                    'text'          => '🎉 Мероприятия',
-                    'callback_data' => 'client_event:' . $userId,
-                ],
-            ],
-            [
-                [
-                    'text'          => '💰 Бонусы',
-                    'callback_data' => 'client_bonus:' . $userId,
-                ],
-                [
-                    'text'          => '✅ Закрыть диалог',
-                    'callback_data' => 'client_close:' . $userId,
-                ],
-            ],
-        ],
-    ];
+    $managerKeyboard = buildManagerReplyKeyboard();
 
     // вспомогательная функция: создать новый топик и кинуть туда «Новый диалог»
     $createNewTopic = function() use (
@@ -1924,6 +2091,21 @@ function handleManagerMessage($message) {
         ]);
 
         // На этом всё — клиенту ничего не отправляем
+        return;
+    }
+
+    $actionFromKeyboard = mapManagerActionByText($rawText);
+    if ($actionFromKeyboard) {
+        performManagerAction($actionFromKeyboard, $userId, $threadId, [
+            'reply_to_message' => $message['message_id'] ?? null,
+        ]);
+
+        // Командное сообщение менеджера можно убрать, чтобы не засорять тред
+        tgRequest('deleteMessage', [
+            'chat_id'    => SUPPORT_CHAT_ID,
+            'message_id' => $message['message_id'],
+        ]);
+
         return;
     }
 
@@ -2108,140 +2290,10 @@ function handleCallbackQuery($callback) {
         return;
     }
 
-    switch ($action) {
-        case 'client_close':
-            support_update_thread($userId, ['status' => 'closed']);
-            tgRequest('sendMessage', [
-                'chat_id'           => SUPPORT_CHAT_ID,
-                'message_thread_id' => $threadId,
-                'text'              => "Диалог с клиентом закрыт ✅",
-            ]);
-            break;
-
-        case 'client_quests':
-            $phone = getUserPhone($userId);
-            if (!$phone) {
-                $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
-            } else {
-                $quests = getQuestsDetailedByPhone($phone);
-                if (isset($quests['error'])) {
-                    $text = "Квесты клиента: " . $quests['error'];
-                } elseif (!$quests) {
-                    $text = "Квестов по этому номеру не найдено.";
-                } else {
-                    $lines = ["Квесты клиента (макс. 5):"];
-                    $count = 0;
-                    foreach ($quests as $q) {
-                        $title  = $q['title'] ?? 'Квест';
-                        $time   = $q['time'] ?? ($q['datetime'] ?? ($q['book_time'] ?? ''));
-                        $status = $q['status'] ?? '';
-
-                        $line = "• {$title}";
-                        if ($time)   $line .= " — {$time}";
-                        if ($status) $line .= " ({$status})";
-
-                        $lines[] = $line;
-                        $count++;
-                        if ($count >= 5) break;
-                    }
-                    $text = implode("\n", $lines);
-                }
-            }
-
-            tgRequest('sendMessage', [
-                'chat_id'           => SUPPORT_CHAT_ID,
-                'message_thread_id' => $threadId,
-                'text'              => $text,
-            ]);
-            break;
-
-        case 'client_event':
-            $phone = getUserPhone($userId);
-            if (!$phone) {
-                $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
-            } else {
-                $event = getEventInfoByPhone($phone);
-                if (!$event) {
-                    $text = "Ближайший праздник клиента не найден.";
-                } else {
-                    $text =
-                        "🎉 Праздник клиента:\n\n" .
-                        "Дата: {$event['date']}\n" .
-                        "Время: {$event['time_from']}–{$event['time_to']}\n" .
-                        "Зал / зона: {$event['hall']}\n" .
-                        "Гостей: {$event['guests']}\n" .
-                        "Именинник: {$event['imen']} ({$event['age']} лет)";
-                }
-            }
-
-            tgRequest('sendMessage', [
-                'chat_id'           => SUPPORT_CHAT_ID,
-                'message_thread_id' => $threadId,
-                'text'              => $text,
-            ]);
-            break;
-
-        case 'client_bonus':
-            $phone = getUserPhone($userId);
-            if (!$phone) {
-                $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
-            } else {
-                $bonus = getBonusInfoByPhone($phone);
-                if (!$bonus) {
-                    $text = "Не удалось получить информацию о бонусах клиента.";
-                } else {
-                    $text = "💰 Бонусы клиента: {$bonus['balance']} руб.";
-                    if (!empty($bonus['expires'])) {
-                        $text .= "\nДействительны до: {$bonus['expires']}";
-                    }
-                }
-            }
-
-            tgRequest('sendMessage', [
-                'chat_id'           => SUPPORT_CHAT_ID,
-                'message_thread_id' => $threadId,
-                'text'              => $text,
-            ]);
-            break;
-
-        case 'load_history':
-            // Загрузка последних 3 исходящих системных сообщений бота клиенту
-            $history = get_last_bot_system_messages($userId, 3);
-
-            if (!$history) {
-                tgRequest('answerCallbackQuery', [
-                    'callback_query_id' => $callback['id'],
-                    'text'              => 'Ранее отправленных сообщений бота нет.',
-                    'show_alert'        => false,
-                ]);
-                return;
-            }
-
-            tgRequest('answerCallbackQuery', [
-                'callback_query_id' => $callback['id'],
-                'text'              => 'Загружаю последние сообщения бота клиенту…',
-                'show_alert'        => false,
-            ]);
-
-            foreach ($history as $row) {
-                $txt = (string)($row['text'] ?? '');
-                if ($txt === '') {
-                    $txt = '[пустое сообщение]';
-                }
-                $out = "🕓 Ранее бот отправлял клиенту:\n" . $txt;
-
-                tgRequest('sendMessage', [
-                    'chat_id'                => SUPPORT_CHAT_ID,
-                    'message_thread_id'      => $threadId,
-                    'text'                   => $out,
-                    'parse_mode'             => 'HTML',
-                    'reply_to_message_id'    => $message['message_id'],
-                    'allow_sending_without_reply' => true,
-                ]);
-            }
-
-            break;
-    }
+    performManagerAction($action, $userId, $threadId, [
+        'callback_id'       => $callback['id'] ?? null,
+        'reply_to_message'  => $message['message_id'] ?? null,
+    ]);
 }
 
 
