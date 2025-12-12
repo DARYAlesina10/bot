@@ -1670,6 +1670,32 @@ function maybeSendManagerKeyboard($threadId, $userId = null, $force = false) {
     return $sentReply || $sentInline;
 }
 
+function isSupportChatMember($userId)
+{
+    static $cache = [];
+
+    $userId = (int)$userId;
+    if ($userId === 0) {
+        return false;
+    }
+
+    if (array_key_exists($userId, $cache)) {
+        return $cache[$userId];
+    }
+
+    $respJson = tgRequest('getChatMember', [
+        'chat_id' => SUPPORT_CHAT_ID,
+        'user_id' => $userId,
+    ]);
+    $resp = $respJson ? json_decode($respJson, true) : null;
+
+    $status = $resp['result']['status'] ?? '';
+    $isMember = in_array($status, ['creator', 'administrator', 'member', 'restricted'], true);
+
+    $cache[$userId] = $isMember;
+    return $isMember;
+}
+
 function mapManagerActionByText($text)
 {
     $text = trim((string)$text);
@@ -2173,6 +2199,18 @@ function handleManagerMessage($message) {
         return;
     }
 
+    $managerId = (int)($message['from']['id'] ?? 0);
+    if (!isSupportChatMember($managerId)) {
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => 'Клавиатура и быстрые действия доступны только участникам группы поддержки.',
+            'reply_to_message_id' => $message['message_id'] ?? null,
+            'allow_sending_without_reply' => true,
+        ]);
+        return;
+    }
+
     $mappedUserId = support_find_user_by_thread($threadId);
     $context      = resolveThreadUserContext($threadId, $mappedUserId);
     $userId       = $context['user_id'];
@@ -2420,6 +2458,18 @@ function handleCallbackQuery($callback) {
             'text'              => '',
             'show_alert'        => false,
         ]);
+    }
+
+    $managerId = (int)($callback['from']['id'] ?? 0);
+    if (!isSupportChatMember($managerId)) {
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => 'Клавиатура менеджера доступна только участникам группы поддержки.',
+            'reply_to_message_id' => $message['message_id'] ?? null,
+            'allow_sending_without_reply' => true,
+        ]);
+        return;
     }
 
     $userIdFromData = 0;
