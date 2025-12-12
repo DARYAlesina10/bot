@@ -1153,10 +1153,13 @@ function buildPrepaymentLink($phone, $amountRub = 3000)
         return ['error' => 'Телефон клиента не указан.'];
     }
 
+    $orderSuffix = random_int(10, 99);
+    $orderId     = $cleanPhone . '-' . $orderSuffix;
+
     $payload = [
         'TerminalKey' => '1660686984400',
         'Amount'      => (int)$amountRub * 100, // в копейках
-        'OrderId'     => $cleanPhone,
+        'OrderId'     => $orderId,
         'SuccessURL'  => 'https://pandoroom.org/',
         'PayType'     => 'O',
     ];
@@ -1199,7 +1202,7 @@ function buildPrepaymentLink($phone, $amountRub = 3000)
     return [
         'link'   => $paymentUrl,
         'amount' => $amountRub,
-        'order'  => $cleanPhone,
+        'order'  => $orderId,
     ];
 }
 
@@ -1971,6 +1974,17 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
                 return;
             }
 
+            if (!$userId) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не можем отправить приглашение: не найден ID клиента для этой темы.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
             $invite = buildInvitationLink($phone);
             if (isset($invite['error'])) {
                 tgRequest('sendMessage', [
@@ -2017,10 +2031,12 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
                     'allow_sending_without_reply' => true,
                 ]);
             } else {
+                $errorText = $resp['description'] ?? 'Не получилось отправить ссылку клиенту, попробуйте ещё раз.';
+
                 tgRequest('sendMessage', [
                     'chat_id'           => SUPPORT_CHAT_ID,
                     'message_thread_id' => $threadId,
-                    'text'              => 'Не получилось отправить ссылку клиенту, попробуйте ещё раз.',
+                    'text'              => 'Не получилось отправить ссылку клиенту: ' . $errorText,
                     'reply_to_message_id' => $replyToMessage,
                     'allow_sending_without_reply' => true,
                 ]);
@@ -2041,6 +2057,17 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
                 return;
             }
 
+            if (!$userId) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не можем отправить ссылку предоплаты: не найден ID клиента для этой темы.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
             $payment = buildPrepaymentLink($phone);
             if (isset($payment['error'])) {
                 tgRequest('sendMessage', [
@@ -2055,6 +2082,7 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
 
             $link   = $payment['link'];
             $amount = $payment['amount'] ?? 0;
+            $order  = $payment['order'] ?? '';
 
             $clientText = "💳 Предоплата";
             if ($amount > 0) {
@@ -2082,6 +2110,9 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
                 if ($amount > 0) {
                     $confirm .= " Сумма: {$amount}₽.";
                 }
+                if ($order !== '') {
+                    $confirm .= " Заказ: {$order}.";
+                }
                 tgRequest('sendMessage', [
                     'chat_id'           => SUPPORT_CHAT_ID,
                     'message_thread_id' => $threadId,
@@ -2090,10 +2121,11 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
                     'allow_sending_without_reply' => true,
                 ]);
             } else {
+                $errorText = $resp['description'] ?? 'Не получилось отправить ссылку предоплаты клиенту, попробуйте ещё раз.';
                 tgRequest('sendMessage', [
                     'chat_id'           => SUPPORT_CHAT_ID,
                     'message_thread_id' => $threadId,
-                    'text'              => 'Не получилось отправить ссылку предоплаты клиенту, попробуйте ещё раз.',
+                    'text'              => 'Не получилось отправить ссылку предоплаты клиенту: ' . $errorText,
                     'reply_to_message_id' => $replyToMessage,
                     'allow_sending_without_reply' => true,
                 ]);
