@@ -726,13 +726,14 @@ function support_get_thread_by_user($userId) {
 }
 
 // Зарегистрировать новый тред (forum topic = message_thread_id)
-function support_register_thread($userId, $threadId) {
+function support_register_thread($userId, $threadId, $phone = null) {
     $store = support_load_store();
     $now   = time();
 
     $store['threads'][] = [
         'user_id'         => (int)$userId,
         'thread_id'       => (int)$threadId,
+        'phone'           => $phone ?: null,
         'status'          => 'open',
         'created_at'      => $now,
         'last_user_msg_at'=> $now,
@@ -774,6 +775,39 @@ function support_find_user_by_thread($threadId) {
         }
     }
     return null;
+}
+
+// Получить полную запись треда по message_thread_id
+function support_get_thread_by_thread_id($threadId) {
+    $store = support_load_store();
+    foreach ($store['threads'] as $t) {
+        if (!isset($t['thread_id'])) {
+            continue;
+        }
+        if ((int)$t['thread_id'] === (int)$threadId) {
+            return $t;
+        }
+    }
+    return null;
+}
+
+// Обновить тред по thread_id (например, чтобы обновить last_keyboard_at)
+function support_update_thread_by_thread_id($threadId, array $fields) {
+    $store   = support_load_store();
+    $threads =& $store['threads'];
+
+    for ($i = count($threads) - 1; $i >= 0; $i--) {
+        if (!isset($threads[$i]['thread_id'])) {
+            continue;
+        }
+        if ((int)$threads[$i]['thread_id'] === (int)$threadId) {
+            foreach ($fields as $k => $v) {
+                $threads[$i][$k] = $v;
+            }
+            support_save_store($store);
+            return;
+        }
+    }
 }
 
 
@@ -1565,18 +1599,38 @@ function sendManagerKeyboardToThread($threadId, $text = 'Меню менедже
     return (bool)($resp['ok'] ?? false);
 }
 
-function maybeSendManagerKeyboard($userId, $threadId, $force = false) {
-    $thread = support_get_thread_by_user($userId);
-    $last   = (int)($thread['last_keyboard_at'] ?? 0);
-    $now    = time();
+function resolveThreadUserContext($threadId, $fallbackUserId = null) {
+    $thread = support_get_thread_by_thread_id($threadId);
+    $userId = $fallbackUserId ?? ($thread['user_id'] ?? null);
+    $phone  = $thread['phone'] ?? null;
 
-    if (!$force && $last !== 0 && ($now - $last) < 300) {
+    if (!$phone && $userId) {
+        $phone = getUserPhone($userId);
+    }
+
+    return [
+        'user_id' => $userId ? (int)$userId : null,
+        'phone'   => $phone ?: null,
+        'thread'  => $thread,
+    ];
+}
+
+function maybeSendManagerKeyboard($threadId, $userId = null, $force = false) {
+    $threadMeta = support_get_thread_by_thread_id($threadId);
+    $last       = (int)($threadMeta['last_keyboard_at'] ?? 0);
+    $now        = time();
+
+    if (!$force && $last !== 0 && ($now - $last) < 60) {
         return false;
     }
 
     $sent = sendManagerKeyboardToThread($threadId);
     if ($sent) {
-        support_update_thread($userId, ['last_keyboard_at' => $now]);
+        if ($userId) {
+            support_update_thread($userId, ['last_keyboard_at' => $now]);
+        } elseif ($threadMeta) {
+            support_update_thread_by_thread_id($threadId, ['last_keyboard_at' => $now]);
+        }
     }
 
     return $sent;
@@ -1601,9 +1655,21 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
 {
     $callbackId     = $context['callback_id']     ?? null;
     $replyToMessage = $context['reply_to_message'] ?? null;
+    $phoneFromCtx   = $context['phone'] ?? null;
+    $resolvedPhone  = $phoneFromCtx ?: ($userId ? getUserPhone($userId) : null);
 
     switch ($action) {
         case 'client_close':
+            if (!$userId) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не удалось закрыть диалог: клиент не определён.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                break;
+            }
             support_update_thread($userId, ['status' => 'closed']);
             tgRequest('sendMessage', [
                 'chat_id'           => SUPPORT_CHAT_ID,
@@ -1613,7 +1679,7 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
             break;
 
         case 'client_quests':
-            $phone = getUserPhone($userId);
+            $phone = $resolvedPhone;
             if (!$phone) {
                 $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
             } else {
@@ -1650,7 +1716,7 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
             break;
 
         case 'client_event':
-            $phone = getUserPhone($userId);
+            $phone = $resolvedPhone;
             if (!$phone) {
                 $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
             } else {
@@ -1676,7 +1742,7 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
             break;
 
         case 'client_bonus':
-            $phone = getUserPhone($userId);
+            $phone = $resolvedPhone;
             if (!$phone) {
                 $text = "Телефон клиента не привязан. Попросите его отправить контакт через бота.";
             } else {
@@ -2007,8 +2073,13 @@ function handleUserSupportMessage($message) {
             'reply_markup'      => json_encode($managerKeyboard, JSON_UNESCAPED_UNICODE),
         ]);
 
-        support_register_thread($userId, $threadId);
-        support_update_thread($userId, ['last_keyboard_at' => time()]);
+        $phoneForStore = $phone;
+        if ($phoneForStore === '(неизвестен)') {
+            $phoneForStore = null;
+        }
+
+        support_register_thread($userId, $threadId, $phoneForStore);
+        support_update_thread($userId, ['last_keyboard_at' => time(), 'phone' => $phoneForStore]);
         return true;
     };
 
@@ -2031,7 +2102,7 @@ function handleUserSupportMessage($message) {
 
     // 3) Если надо показать кнопки в уже существующем треде — шлём служебное сообщение с меню
     if ($needShowKeyboard && !$needCreateTopic && $threadId) {
-        maybeSendManagerKeyboard($userId, $threadId, true);
+        maybeSendManagerKeyboard($threadId, $userId, true);
     }
 
     // Обновляем мету по треду
@@ -2068,13 +2139,24 @@ function handleManagerMessage($message) {
         return;
     }
 
-    $userId = support_find_user_by_thread($threadId);
-    if (!$userId) {
-        return;
-    }
+    $mappedUserId = support_find_user_by_thread($threadId);
+    $context      = resolveThreadUserContext($threadId, $mappedUserId);
+    $userId       = $context['user_id'];
+    $phone        = $context['phone'];
 
     // Всегда стараемся держать меню под рукой в треде
-    maybeSendManagerKeyboard($userId, $threadId);
+    maybeSendManagerKeyboard($threadId, $userId);
+
+    if (!$userId) {
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => 'Не смогли найти клиента для этой темы. Откройте диалог через бота, чтобы кнопки знали ID клиента.',
+            'reply_to_message_id' => $message['message_id'] ?? null,
+            'allow_sending_without_reply' => true,
+        ]);
+        return;
+    }
 
     $from        = $message['from'] ?? [];
     $managerName = trim(
@@ -2131,6 +2213,7 @@ function handleManagerMessage($message) {
     if ($actionFromKeyboard) {
         performManagerAction($actionFromKeyboard, $userId, $threadId, [
             'reply_to_message' => $message['message_id'] ?? null,
+            'phone'            => $phone,
         ]);
 
         // Командное сообщение менеджера можно убрать, чтобы не засорять тред
@@ -2309,23 +2392,25 @@ function handleCallbackQuery($callback) {
     $action = $parts[0] ?? '';
     $userId = isset($parts[1]) ? (int)$parts[1] : 0;
 
-    // Если в callback не передали user_id (или он не распарсился),
-    // пробуем достать его по message_thread_id. Иначе кнопки в треде
-    // менеджеров будут «немыми».
-    if (!$userId && $threadId) {
-        $mappedUserId = support_find_user_by_thread($threadId);
-        if ($mappedUserId) {
-            $userId = (int)$mappedUserId;
-        }
-    }
+    $context = resolveThreadUserContext($threadId, $userId ?: null);
+    $userId  = $context['user_id'];
+    $phone   = $context['phone'];
 
     if (!$userId) {
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => 'Не нашли клиента для этой темы, поэтому кнопка не сработала.',
+            'reply_to_message_id' => $message['message_id'] ?? null,
+            'allow_sending_without_reply' => true,
+        ]);
         return;
     }
 
     performManagerAction($action, $userId, $threadId, [
         'callback_id'       => $callback['id'] ?? null,
         'reply_to_message'  => $message['message_id'] ?? null,
+        'phone'             => $phone,
     ]);
 }
 
