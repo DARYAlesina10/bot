@@ -2199,18 +2199,6 @@ function support_forward_user_message($userId, $userMessageId, $threadId, $messa
         $replyToAdminId = mapReplyToAdmin($userId, (int)$message['reply_to_message']['message_id']);
     }
 
-    // Кнопка "загрузить сообщения"
-    $historyKeyboard = [
-        'inline_keyboard' => [
-            [
-                [
-                    'text'          => '📥 Загрузить сообщения',
-                    'callback_data' => 'load_history:' . $userId,
-                ],
-            ],
-        ],
-    ];
-
     if ($hasPhoto) {
         $photo = end($message['photo']);
         $fileId = $photo['file_id'];
@@ -2222,7 +2210,6 @@ function support_forward_user_message($userId, $userMessageId, $threadId, $messa
             'photo'             => $fileId,
             'caption'           => $cap,
             'parse_mode'        => 'HTML',
-            'reply_markup'      => json_encode($historyKeyboard, JSON_UNESCAPED_UNICODE),
         ];
         if ($replyToAdminId) {
             $params['reply_to_message_id'] = $replyToAdminId;
@@ -2251,7 +2238,6 @@ function support_forward_user_message($userId, $userMessageId, $threadId, $messa
             'document'          => $fileId,
             'caption'           => $cap,
             'parse_mode'        => 'HTML',
-            'reply_markup'      => json_encode($historyKeyboard, JSON_UNESCAPED_UNICODE),
         ];
         if ($replyToAdminId) {
             $params['reply_to_message_id'] = $replyToAdminId;
@@ -2275,7 +2261,6 @@ function support_forward_user_message($userId, $userMessageId, $threadId, $messa
         'message_thread_id' => $threadId,
         'text'              => $supportText,
         'parse_mode'        => 'HTML',
-        'reply_markup'      => json_encode($historyKeyboard, JSON_UNESCAPED_UNICODE),
     ];
     if ($replyToAdminId) {
         $params['reply_to_message_id'] = $replyToAdminId;
@@ -2354,6 +2339,10 @@ function handleUserSupportMessage($message) {
     $needShowKeyboard  = false;
     $threadId          = null;
 
+    $lastKeyboardAt  = (int)(is_array($thread) ? ($thread['last_keyboard_at'] ?? 0) : 0);
+    $lastKeyboardDay = $lastKeyboardAt ? date('Y-m-d', $lastKeyboardAt) : null;
+    $todayDay        = date('Y-m-d');
+
     if (!$thread || empty($thread['thread_id'])) {
         // Новый клиент / нет записи
         $needCreateTopic  = true;
@@ -2367,7 +2356,7 @@ function handleUserSupportMessage($message) {
         if ($status === 'closed') {
             // Диалог был закрыт — открываем снова
             $needNotifyUser   = true;
-            $needShowKeyboard = true;
+            $needShowKeyboard = ($lastKeyboardDay !== $todayDay);
 
             tgRequest('sendMessage', [
                 'chat_id'           => SUPPORT_CHAT_ID,
@@ -2376,10 +2365,12 @@ function handleUserSupportMessage($message) {
             ]);
 
             support_update_thread($userId, ['status' => 'open']);
-        } elseif ($lastNotify === 0 || ($now - $lastNotify) >= 2 * 3600) {
-            // Прошло более 2 часов — снова уведомляем клиента и показываем кнопки
-            $needNotifyUser   = true;
+        } elseif ($lastKeyboardDay !== $todayDay) {
+            // Клиент написал впервые за текущие сутки — показываем меню
             $needShowKeyboard = true;
+            if ($lastNotify === 0 || ($now - $lastNotify) >= 2 * 3600) {
+                $needNotifyUser = true;
+            }
         }
     }
 
