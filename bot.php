@@ -1827,6 +1827,16 @@ function handleUserSupportMessage($message) {
         support_forward_user_message($userId, $userMessageId, $threadId, $message, $textForHeader);
     }
 
+    // 3) Если надо показать кнопки в уже существующем треде — шлём служебное сообщение с меню
+    if ($needShowKeyboard && !$needCreateTopic && $threadId) {
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => 'Меню менеджера для работы с клиентом:',
+            'reply_markup'      => json_encode($managerKeyboard, JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+
     // Обновляем мету по треду
     support_update_thread($userId, [
         'last_user_msg_at' => $now,
