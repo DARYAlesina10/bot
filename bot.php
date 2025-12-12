@@ -1146,6 +1146,63 @@ function buildInvitationLink($phone)
     ];
 }
 
+function buildPrepaymentLink($phone, $amountRub = 3000)
+{
+    $cleanPhone = preg_replace('/\D+/', '', (string)$phone);
+    if ($cleanPhone === '') {
+        return ['error' => 'Телефон клиента не указан.'];
+    }
+
+    $payload = [
+        'TerminalKey' => '1660686984400',
+        'Amount'      => (int)$amountRub * 100, // в копейках
+        'OrderId'     => $cleanPhone,
+        'SuccessURL'  => 'https://pandoroom.org/',
+        'PayType'     => 'O',
+    ];
+
+    $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    if ($jsonPayload === false) {
+        return ['error' => 'Не удалось подготовить запрос оплаты.'];
+    }
+
+    $ch = curl_init('https://securepay.tinkoff.ru/v2/Init');
+    curl_setopt_array($ch, [
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $jsonPayload,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_HEADER         => false,
+    ]);
+
+    $res = curl_exec($ch);
+    if ($res === false) {
+        $err = curl_error($ch);
+        curl_close($ch);
+        return ['error' => 'Ошибка запроса оплаты: ' . $err];
+    }
+
+    $resz = json_decode($res, true);
+    curl_close($ch);
+
+    if (!is_array($resz)) {
+        return ['error' => 'Некорректный ответ платёжного сервиса.'];
+    }
+
+    $paymentUrl = $resz['PaymentURL'] ?? null;
+    if (!$paymentUrl) {
+        $message = $resz['Message'] ?? $resz['Details'] ?? 'Не удалось получить ссылку оплаты.';
+        return ['error' => $message];
+    }
+
+    return [
+        'link'   => $paymentUrl,
+        'amount' => $amountRub,
+        'order'  => $cleanPhone,
+    ];
+}
+
 
 
 
@@ -1645,6 +1702,7 @@ function buildManagerReplyKeyboard() {
             [
                 ['text' => '📥 Сообщения бота'],
                 ['text' => '🔗 Ссылка приглашения'],
+                ['text' => '💳 Предоплата'],
             ],
         ],
         'resize_keyboard'       => true,
@@ -1671,6 +1729,7 @@ function buildManagerInlineKeyboard() {
             [
                 ['text' => '📥 Сообщения бота', 'callback_data' => 'mgr_action:load_history'],
                 ['text' => '🔗 Приглашение', 'callback_data' => 'mgr_action:invite_link'],
+                ['text' => '💳 Предоплата', 'callback_data' => 'mgr_action:prepayment_link'],
             ],
         ],
     ];
@@ -1780,6 +1839,7 @@ function mapManagerActionByText($text)
         '✅ Закрыть диалог'   => 'client_close',
         '📥 Сообщения бота'   => 'load_history',
         '🔗 Ссылка приглашения' => 'invite_link',
+        '💳 Предоплата'         => 'prepayment_link',
     ];
 
     return $map[$text] ?? null;
@@ -1931,11 +1991,18 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
             if ($date || $time) {
                 $clientText .= " ({$date} {$time})";
             }
-            $clientText .= ":\n" . $link;
+            $clientText .= ':';
 
             $respJson = tgRequest('sendMessage', [
-                'chat_id' => $userId,
-                'text'    => $clientText,
+                'chat_id'      => $userId,
+                'text'         => $clientText,
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => 'Открыть приглашение', 'url' => $link],
+                        ],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
             ]);
             $resp = $respJson ? json_decode($respJson, true) : null;
 
@@ -1954,6 +2021,79 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
                     'chat_id'           => SUPPORT_CHAT_ID,
                     'message_thread_id' => $threadId,
                     'text'              => 'Не получилось отправить ссылку клиенту, попробуйте ещё раз.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+            }
+
+            break;
+
+        case 'prepayment_link':
+            $phone = $resolvedPhone;
+            if (!$phone) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Телефон клиента не определён, не можем сформировать ссылку предоплаты.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
+            $payment = buildPrepaymentLink($phone);
+            if (isset($payment['error'])) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не удалось получить ссылку предоплаты: ' . $payment['error'],
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
+            $link   = $payment['link'];
+            $amount = $payment['amount'] ?? 0;
+
+            $clientText = "💳 Предоплата";
+            if ($amount > 0) {
+                $clientText .= " {$amount}₽";
+            }
+            $clientText .= ":\nНажмите кнопку, чтобы перейти к оплате.";
+
+            $respJson = tgRequest('sendMessage', [
+                'chat_id'      => $userId,
+                'text'         => $clientText,
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => 'Оплатить предоплату', 'url' => $link],
+                        ],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+            $resp = $respJson ? json_decode($respJson, true) : null;
+
+            if (!empty($resp['ok']) && !empty($resp['result']['message_id'])) {
+                log_bot_message($userId, (int)$resp['result']['message_id'], $clientText, 'system');
+
+                $confirm = "Ссылка предоплаты отправлена клиенту.";
+                if ($amount > 0) {
+                    $confirm .= " Сумма: {$amount}₽.";
+                }
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => $confirm . "\n{$link}",
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+            } else {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не получилось отправить ссылку предоплаты клиенту, попробуйте ещё раз.',
                     'reply_to_message_id' => $replyToMessage,
                     'allow_sending_without_reply' => true,
                 ]);
