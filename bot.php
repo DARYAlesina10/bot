@@ -2528,7 +2528,7 @@ function handleManagerMessage($message) {
     $trimmed = ltrim((string)$rawText);
 
     // Команда менеджера на показ меню внутри треда
-    if ($rawText !== '' && mb_strtolower($trimmed) === '/// menu') {
+    if ($rawText !== '' && $trimmed === '//') {
         $sent = maybeSendManagerKeyboard($threadId, $userId, true);
 
         // Удаляем исходную команду, чтобы она не мешала в треде
