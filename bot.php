@@ -372,7 +372,7 @@ if (isset($_GET['action'])) {
                 exit;
             }
 
-            // Пишем сообщение в историю для кнопки "Загрузить сообщения"
+            // Пишем сообщение в историю для просмотра переписки клиентом
             register_external_bot_message($chatId, $text);
 
             echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
@@ -2456,7 +2456,7 @@ function handleUserSupportMessage($message) {
             return;
         }
         // После создания треда ещё раз прокидываем текущее сообщение отдельно,
-        // чтобы оно было как самостоятельное сообщение с кнопкой "Загрузить сообщения".
+        // чтобы оно было как самостоятельное сообщение в теме поддержки.
         support_forward_user_message($userId, $userMessageId, $threadId, $message, $textForHeader);
     }
 
@@ -2515,9 +2515,6 @@ function handleManagerMessage($message) {
     $context      = resolveThreadUserContext($threadId, $mappedUserId);
     $userId       = $context['user_id'];
     $phone        = $context['phone'];
-
-    // Всегда стараемся держать меню под рукой в треде
-    maybeSendManagerKeyboard($threadId, $userId);
 
     if (!$userId) {
         tgRequest('sendMessage', [
