@@ -2336,18 +2336,13 @@ function handleUserSupportMessage($message) {
 
     $needCreateTopic   = false;
     $needNotifyUser    = false;
-    $needShowKeyboard  = false;
     $threadId          = null;
-
-    $lastKeyboardAt  = (int)(is_array($thread) ? ($thread['last_keyboard_at'] ?? 0) : 0);
-    $lastKeyboardDay = $lastKeyboardAt ? date('Y-m-d', $lastKeyboardAt) : null;
-    $todayDay        = date('Y-m-d');
+    $lastNotify        = 0;
 
     if (!$thread || empty($thread['thread_id'])) {
         // Новый клиент / нет записи
         $needCreateTopic  = true;
         $needNotifyUser   = true;
-        $needShowKeyboard = true;
     } else {
         $threadId    = (int)$thread['thread_id'];
         $status      = $thread['status'] ?? 'open';
@@ -2356,7 +2351,6 @@ function handleUserSupportMessage($message) {
         if ($status === 'closed') {
             // Диалог был закрыт — открываем снова
             $needNotifyUser   = true;
-            $needShowKeyboard = ($lastKeyboardDay !== $todayDay);
 
             tgRequest('sendMessage', [
                 'chat_id'           => SUPPORT_CHAT_ID,
@@ -2365,18 +2359,13 @@ function handleUserSupportMessage($message) {
             ]);
 
             support_update_thread($userId, ['status' => 'open']);
-        } elseif ($lastKeyboardDay !== $todayDay) {
-            // Клиент написал впервые за текущие сутки — показываем меню
-            $needShowKeyboard = true;
-            if ($lastNotify === 0 || ($now - $lastNotify) >= 2 * 3600) {
-                $needNotifyUser = true;
-            }
+        } elseif ($lastNotify === 0 || ($now - $lastNotify) >= 2 * 3600) {
+            // Первое сообщение за последние 2 часа — напомним клиенту о менеджере
+            $needNotifyUser = true;
         }
     }
 
     // Кнопки для менеджера (отдельно, на "Новый диалог")
-    $managerKeyboard = buildManagerReplyKeyboard();
-
     // вспомогательная функция: создать новый топик и кинуть туда «Новый диалог»
     $createNewTopic = function() use (
         $userId,
@@ -2384,7 +2373,6 @@ function handleUserSupportMessage($message) {
         $username,
         $phone,
         $textForHeader,
-        $managerKeyboard,
         &$threadId
     ) {
         // проверяем, есть ли предстоящий праздник — если да, добавим 🎂
@@ -2430,7 +2418,6 @@ function handleUserSupportMessage($message) {
             'message_thread_id' => $threadId,
             'text'              => $supportText,
             'parse_mode'        => 'HTML',
-            'reply_markup'      => json_encode($managerKeyboard, JSON_UNESCAPED_UNICODE),
         ]);
 
         $phoneForStore = $phone;
@@ -2439,7 +2426,7 @@ function handleUserSupportMessage($message) {
         }
 
         support_register_thread($userId, $threadId, $phoneForStore);
-        support_update_thread($userId, ['last_keyboard_at' => time(), 'phone' => $phoneForStore]);
+        support_update_thread($userId, ['phone' => $phoneForStore]);
         return true;
     };
 
@@ -2458,11 +2445,6 @@ function handleUserSupportMessage($message) {
         // После создания треда ещё раз прокидываем текущее сообщение отдельно,
         // чтобы оно было как самостоятельное сообщение в теме поддержки.
         support_forward_user_message($userId, $userMessageId, $threadId, $message, $textForHeader);
-    }
-
-    // 3) Если надо показать кнопки в уже существующем треде — шлём служебное сообщение с меню
-    if ($needShowKeyboard && !$needCreateTopic && $threadId) {
-        maybeSendManagerKeyboard($threadId, $userId, true);
     }
 
     // Обновляем мету по треду
@@ -2544,6 +2526,28 @@ function handleManagerMessage($message) {
 
     // Учитываем возможные пробелы перед !!
     $trimmed = ltrim((string)$rawText);
+
+    // Команда менеджера на показ меню внутри треда
+    if ($rawText !== '' && mb_strtolower($trimmed) === '/// menu') {
+        $sent = maybeSendManagerKeyboard($threadId, $userId, true);
+
+        // Удаляем исходную команду, чтобы она не мешала в треде
+        tgRequest('deleteMessage', [
+            'chat_id'    => SUPPORT_CHAT_ID,
+            'message_id' => $message['message_id'],
+        ]);
+
+        if (!$sent) {
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => 'Не удалось показать меню менеджера. Попробуйте ещё раз позже.',
+                'allow_sending_without_reply' => true,
+            ]);
+        }
+
+        return;
+    }
 
     // 🔹 СЛУЖЕБНЫЕ КОММЕНТАРИИ (только текстовые)
     if ($rawText !== '' && mb_strpos($trimmed, '!!') === 0) {
