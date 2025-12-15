@@ -1001,20 +1001,22 @@ function getIikoCategoriesByPhone($phone) {
         return ['error' => 'Телефон не указан'];
     }
 
-    $data = callPandoroomOrgApi('iiko_categories.php', ['phone' => $phone]);
-    if ($data === null) {
-        return ['error' => 'Не удалось связаться с pandoroom.org (iiko_categories).'];
-    }
-
+    // Запрашиваем так же, как подарки/паспорт, только читаем нужное поле
+    $data = getGiftsAndPassportByPhone($phone);
     if (isset($data['error'])) {
         return ['error' => $data['error']];
     }
 
-    if (!is_array($data)) {
+    $categories = $data['iiko_categories'] ?? null;
+    if ($categories === null) {
+        return ['error' => 'Категории iiko не найдены.'];
+    }
+
+    if (!is_array($categories)) {
         return ['error' => 'Некорректный ответ от iiko_categories.'];
     }
 
-    return $data;
+    return $categories;
 }
 
 
@@ -1370,8 +1372,12 @@ function sendUserQuests($chatId, $phone) {
 
             $cancelRow = [
                 [
-                    'text'          => '❌ Отменить/изменить',
+                    'text'          => '❌ Отменить',
                     'callback_data' => 'quest_cancel_request',
+                ],
+                [
+                    'text'          => '✏️ Изменить',
+                    'callback_data' => 'quest_change_request',
                 ],
             ];
 
@@ -1582,8 +1588,12 @@ function sendUserUpcomingQuests($chatId, $phone) {
 
         $cancelRow = [
             [
-                'text'          => '❌ Отменить/изменить',
+                'text'          => '❌ Отменить',
                 'callback_data' => 'quest_cancel_request',
+            ],
+            [
+                'text'          => '✏️ Изменить',
+                'callback_data' => 'quest_change_request',
             ],
         ];
 
@@ -2978,7 +2988,7 @@ function handleCallbackQuery($callback) {
                         'type' => 'private',
                     ],
                     'from' => $callback['from'],
-                    'text' => "Клиент запросил отмену или изменение квеста:\n" . $questSummary,
+                    'text' => "Клиент запросил отмену квеста:\n" . $questSummary,
                 ];
                 handleUserSupportMessage($fakeMessage);
             }
@@ -2993,8 +3003,41 @@ function handleCallbackQuery($callback) {
 
             tgRequest('sendMessage', [
                 'chat_id' => $userId,
-                'text'    => 'Передали менеджеру запрос на отмену или изменение квеста. '
-                             . 'Если нужно, напишите детали в ответном сообщении.',
+                'text'    => 'Передали менеджеру запрос на отмену квеста. Если нужно, напишите детали в ответном сообщении.',
+            ]);
+
+            return;
+        }
+
+        if ($data === 'quest_change_request' && $userId) {
+            $questSummary = trim($message['caption'] ?? ($message['text'] ?? ''));
+            if ($questSummary === '') {
+                $questSummary = '(информация о квесте не передана)';
+            }
+
+            if (function_exists('handleUserSupportMessage')) {
+                $fakeMessage = [
+                    'chat' => [
+                        'id'   => $userId,
+                        'type' => 'private',
+                    ],
+                    'from' => $callback['from'],
+                    'text' => "Клиент хочет изменить данные по квесту:\n" . $questSummary,
+                ];
+                handleUserSupportMessage($fakeMessage);
+            }
+
+            if (!empty($callback['id'])) {
+                tgRequest('answerCallbackQuery', [
+                    'callback_query_id' => $callback['id'],
+                    'text'              => 'Передали менеджеру ваш запрос по квесту',
+                    'show_alert'        => false,
+                ]);
+            }
+
+            tgRequest('sendMessage', [
+                'chat_id' => $userId,
+                'text'    => 'Передали менеджеру запрос на изменение квеста. Напишите, что именно нужно поменять.',
             ]);
 
             return;
