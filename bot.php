@@ -996,6 +996,27 @@ function getBonusInfoByPhone($phone) {
     ];
 }
 
+function getIikoCategoriesByPhone($phone) {
+    if (!$phone) {
+        return ['error' => 'Телефон не указан'];
+    }
+
+    $data = callPandoroomOrgApi('iiko_categories.php', ['phone' => $phone]);
+    if ($data === null) {
+        return ['error' => 'Не удалось связаться с pandoroom.org (iiko_categories).'];
+    }
+
+    if (isset($data['error'])) {
+        return ['error' => $data['error']];
+    }
+
+    if (!is_array($data)) {
+        return ['error' => 'Некорректный ответ от iiko_categories.'];
+    }
+
+    return $data;
+}
+
 
 // ==========================
 //  ПРАЗДНИК / МЕРОПРИЯТИЯ (drobmen.php на pandoroom.tech)
@@ -1347,6 +1368,19 @@ function sendUserQuests($chatId, $phone) {
     ];
 }
 
+            $cancelRow = [
+                [
+                    'text'          => '❌ Отменить/изменить',
+                    'callback_data' => 'quest_cancel_request',
+                ],
+            ];
+
+            if ($inlineKeyboard) {
+                $inlineKeyboard['inline_keyboard'][] = $cancelRow;
+            } else {
+                $inlineKeyboard = ['inline_keyboard' => [$cancelRow]];
+            }
+
             if ($image) {
                 $params = [
                     'chat_id'    => $chatId,
@@ -1546,6 +1580,20 @@ function sendUserUpcomingQuests($chatId, $phone) {
         }
 
 
+        $cancelRow = [
+            [
+                'text'          => '❌ Отменить/изменить',
+                'callback_data' => 'quest_cancel_request',
+            ],
+        ];
+
+        if ($inlineKeyboard) {
+            $inlineKeyboard['inline_keyboard'][] = $cancelRow;
+        } else {
+            $inlineKeyboard = ['inline_keyboard' => [$cancelRow]];
+        }
+
+
         if ($image) {
             $params = [
                 'chat_id'    => $chatId,
@@ -1707,6 +1755,17 @@ function buildManagerReplyKeyboard() {
                 ['text' => '🔗 Ссылка приглашения'],
                 ['text' => '💳 Предоплата'],
             ],
+            [
+                ['text' => '🎂 Каталог тортов'],
+                ['text' => '🍽 Праздничное меню'],
+            ],
+            [
+                ['text' => '🎈 Украшения'],
+                ['text' => '🎭 Каталог шоу-программ'],
+            ],
+            [
+                ['text' => '📂 Категории iiko'],
+            ],
         ],
         'resize_keyboard'       => true,
         'one_time_keyboard'     => false,
@@ -1733,6 +1792,17 @@ function buildManagerInlineKeyboard() {
                 ['text' => '📥 Сообщения бота', 'callback_data' => 'mgr_action:load_history'],
                 ['text' => '🔗 Приглашение', 'callback_data' => 'mgr_action:invite_link'],
                 ['text' => '💳 Предоплата', 'callback_data' => 'mgr_action:prepayment_link'],
+            ],
+            [
+                ['text' => '🎂 Каталог тортов', 'callback_data' => 'mgr_action:catalog_cakes'],
+                ['text' => '🍽 Меню', 'callback_data' => 'mgr_action:catalog_menu'],
+            ],
+            [
+                ['text' => '🎈 Украшения', 'callback_data' => 'mgr_action:catalog_decor'],
+                ['text' => '🎭 Шоу-программы', 'callback_data' => 'mgr_action:catalog_show'],
+            ],
+            [
+                ['text' => '📂 Категории iiko', 'callback_data' => 'mgr_action:iiko_categories'],
             ],
         ],
     ];
@@ -1843,6 +1913,11 @@ function mapManagerActionByText($text)
         '📥 Сообщения бота'   => 'load_history',
         '🔗 Ссылка приглашения' => 'invite_link',
         '💳 Предоплата'         => 'prepayment_link',
+        '🎂 Каталог тортов'     => 'catalog_cakes',
+        '🍽 Праздничное меню'   => 'catalog_menu',
+        '🎈 Украшения'          => 'catalog_decor',
+        '🎭 Каталог шоу-программ' => 'catalog_show',
+        '📂 Категории iiko'     => 'iiko_categories',
     ];
 
     return $map[$text] ?? null;
@@ -1909,6 +1984,78 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
                 'chat_id'           => SUPPORT_CHAT_ID,
                 'message_thread_id' => $threadId,
                 'text'              => $text,
+            ]);
+            break;
+
+        case 'catalog_cakes':
+            sendCatalogToClient($userId, $threadId, $replyToMessage, '🎂 Каталог тортов', 'https://pandoroom.org/torts.pdf');
+            break;
+
+        case 'catalog_menu':
+            sendCatalogToClient($userId, $threadId, $replyToMessage, '🍽 Праздничное меню', 'https://pandoroom.org/prazdpand.pdf');
+            break;
+
+        case 'catalog_decor':
+            sendCatalogToClient($userId, $threadId, $replyToMessage, '🎈 Украшения', 'https://pandoroom.org/dupsysl.pdf');
+            break;
+
+        case 'catalog_show':
+            sendCatalogToClient($userId, $threadId, $replyToMessage, '🎭 Шоу-программы', 'https://pandoroom.org/wp-content/uploads/2024/09/katalog-shou-programmy.pdf');
+            break;
+
+        case 'iiko_categories':
+            $phone = $resolvedPhone;
+            if (!$phone) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Телефон клиента не определён, не можем показать категории.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
+            $categories = getIikoCategoriesByPhone($phone);
+            if (isset($categories['error'])) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не удалось получить категории iiko: ' . $categories['error'],
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
+            if (!$categories) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'У клиента нет доступных категорий iiko.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                return;
+            }
+
+            $lines = ['📂 Категории iiko клиента:'];
+            foreach ($categories as $cat) {
+                $name  = $cat['name'] ?? 'Категория';
+                $until = $cat['valid_to'] ?? ($cat['date'] ?? '');
+                $line = '• ' . $name;
+                if ($until !== '') {
+                    $line .= ' (до ' . $until . ')';
+                }
+                $lines[] = $line;
+            }
+
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => implode("\n", $lines),
+                'reply_to_message_id' => $replyToMessage,
+                'allow_sending_without_reply' => true,
             ]);
             break;
 
@@ -2184,6 +2331,56 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
     }
 }
 
+function sendCatalogToClient($userId, $threadId, $replyToMessageId, $title, $url)
+{
+    if (!$userId) {
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => 'Не можем отправить каталог: клиент не определён для этой темы.',
+            'reply_to_message_id' => $replyToMessageId,
+            'allow_sending_without_reply' => true,
+        ]);
+        return;
+    }
+
+    $clientText = $title . ":\nНажмите кнопку, чтобы открыть каталог.";
+
+    $respJson = tgRequest('sendMessage', [
+        'chat_id'      => $userId,
+        'text'         => $clientText,
+        'reply_markup' => json_encode([
+            'inline_keyboard' => [
+                [
+                    ['text' => 'Открыть каталог', 'url' => $url],
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE),
+    ]);
+
+    $resp = $respJson ? json_decode($respJson, true) : null;
+    if (!empty($resp['ok']) && !empty($resp['result']['message_id'])) {
+        log_bot_message($userId, (int)$resp['result']['message_id'], $clientText, 'system');
+
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => "Каталог отправлен клиенту.\n{$url}",
+            'reply_to_message_id' => $replyToMessageId,
+            'allow_sending_without_reply' => true,
+        ]);
+    } else {
+        $errorText = $resp['description'] ?? 'Не удалось отправить каталог клиенту.';
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => 'Ошибка отправки каталога: ' . $errorText,
+            'reply_to_message_id' => $replyToMessageId,
+            'allow_sending_without_reply' => true,
+        ]);
+    }
+}
+
 /**
  * Вспомогательная: прокинуть конкретное сообщение клиента в тред
  * (текст / фото / документ) + записать связку сообщений.
@@ -2301,6 +2498,29 @@ function handleUserSupportMessage($message) {
     $rawText     = is_string($rawText) ? trim($rawText) : '';
     $caption     = trim($message['caption'] ?? '');
 
+    $phoneKeyboard = [
+        'keyboard' => [
+            [
+                [
+                    'text'            => 'Отправить номер телефона',
+                    'request_contact' => true,
+                ],
+            ],
+        ],
+        'resize_keyboard'   => true,
+        'one_time_keyboard' => true,
+    ];
+
+    $phone = getUserPhone($userId);
+    if (!$phone) {
+        tgRequest('sendMessage', [
+            'chat_id'      => $userId,
+            'text'         => 'Чтобы отправить нам сообщение и для полного функционирования бота, поделитесь контактом кнопкой ниже.',
+            'reply_markup' => json_encode($phoneKeyboard, JSON_UNESCAPED_UNICODE),
+        ]);
+        return;
+    }
+
     // Человекочитаемый текст для "первого сообщения" и для текстового варианта
     if ($rawText !== '') {
         $textForHeader = $rawText;
@@ -2329,7 +2549,7 @@ function handleUserSupportMessage($message) {
     }
 
     $username = !empty($from['username']) ? '@' . $from['username'] : '(нет username)';
-    $phone    = getUserPhone($userId) ?: '(неизвестен)';
+    $phoneForLog = $phone ?: '(неизвестен)';
 
     $now    = time();
     $thread = support_get_thread_by_user($userId);
@@ -2498,17 +2718,6 @@ function handleManagerMessage($message) {
     $userId       = $context['user_id'];
     $phone        = $context['phone'];
 
-    if (!$userId) {
-        tgRequest('sendMessage', [
-            'chat_id'           => SUPPORT_CHAT_ID,
-            'message_thread_id' => $threadId,
-            'text'              => 'Не смогли найти клиента для этой темы. Откройте диалог через бота, чтобы кнопки знали ID клиента.',
-            'reply_to_message_id' => $message['message_id'] ?? null,
-            'allow_sending_without_reply' => true,
-        ]);
-        return;
-    }
-
     $from        = $message['from'] ?? [];
     $managerName = trim(
         ($from['first_name'] ?? '') . ' ' . ($from['last_name'] ?? '')
@@ -2584,10 +2793,20 @@ function handleManagerMessage($message) {
 
     $actionFromKeyboard = mapManagerActionByText($rawText);
     if ($actionFromKeyboard) {
-        performManagerAction($actionFromKeyboard, $userId, $threadId, [
-            'reply_to_message' => $message['message_id'] ?? null,
-            'phone'            => $phone,
-        ]);
+        if (!$userId) {
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => 'Не смогли определить клиента для этой темы. Откройте диалог через бота, чтобы выполнять действия.',
+                'reply_to_message_id' => $message['message_id'] ?? null,
+                'allow_sending_without_reply' => true,
+            ]);
+        } else {
+            performManagerAction($actionFromKeyboard, $userId, $threadId, [
+                'reply_to_message' => $message['message_id'] ?? null,
+                'phone'            => $phone,
+            ]);
+        }
 
         // Командное сообщение менеджера можно убрать, чтобы не засорять тред
         tgRequest('deleteMessage', [
@@ -2600,6 +2819,17 @@ function handleManagerMessage($message) {
 
     // Определяем, есть ли вообще что отправлять клиенту
     if (!$hasPhoto && !$hasDocument && $rawText === '' && $caption === '') {
+        return;
+    }
+
+    if (!$userId) {
+        tgRequest('sendMessage', [
+            'chat_id'           => SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text'              => 'Не удалось отправить сообщение клиенту: тема не привязана к его диалогу.',
+            'reply_to_message_id' => $message['message_id'] ?? null,
+            'allow_sending_without_reply' => true,
+        ]);
         return;
     }
 
@@ -2700,40 +2930,72 @@ function handleCallbackQuery($callback) {
 
     // ====== ВЕТКА 1. CALLBACK ИЗ ЛИЧКИ С ПОЛЬЗОВАТЕЛЕМ ======
     if ($chatId > 0) {
-        // единственное, что нам нужно сейчас — party_edit
-        if ($data === 'party_edit') {
-            $userId = $callback['from']['id'] ?? null;
+        $userId = $callback['from']['id'] ?? null;
 
-            if ($userId) {
-                // Сообщение в техподдержку через общий механизм
-                if (function_exists('handleUserSupportMessage')) {
-                    $fakeMessage = [
-                        'chat' => [
-                            'id'   => $userId,
-                            'type' => 'private',
-                        ],
-                        'from' => $callback['from'], // тут есть first_name/last_name/username
-                        'text' => 'Клиент нажал кнопку «Хочу внести изменения по празднику»',
-                    ];
-                    handleUserSupportMessage($fakeMessage);
-                }
+        if ($data === 'party_edit' && $userId) {
+            // Сообщение в техподдержку через общий механизм
+            if (function_exists('handleUserSupportMessage')) {
+                $fakeMessage = [
+                    'chat' => [
+                        'id'   => $userId,
+                        'type' => 'private',
+                    ],
+                    'from' => $callback['from'], // тут есть first_name/last_name/username
+                    'text' => 'Клиент нажал кнопку «Хочу внести изменения по празднику»',
+                ];
+                handleUserSupportMessage($fakeMessage);
+            }
 
-                // Ответ на сам callback (убираем "часики")
-                if (!empty($callback['id'])) {
-                    tgRequest('answerCallbackQuery', [
-                        'callback_query_id' => $callback['id'],
-                        'text'              => 'Ваш запрос передан менеджеру 💬',
-                        'show_alert'        => false,
-                    ]);
-                }
-
-                // Сообщение клиенту
-                tgRequest('sendMessage', [
-                    'chat_id' => $userId,
-                    'text'    => 'Мы передали менеджеру, что вы хотите внести изменения в праздник. ' .
-                                 'Напишите, пожалуйста, в этом чате, что именно нужно скорректировать 🙂',
+            // Ответ на сам callback (убираем "часики")
+            if (!empty($callback['id'])) {
+                tgRequest('answerCallbackQuery', [
+                    'callback_query_id' => $callback['id'],
+                    'text'              => 'Ваш запрос передан менеджеру 💬',
+                    'show_alert'        => false,
                 ]);
             }
+
+            // Сообщение клиенту
+            tgRequest('sendMessage', [
+                'chat_id' => $userId,
+                'text'    => 'Мы передали менеджеру, что вы хотите внести изменения в праздник. '
+                             . 'Напишите, пожалуйста, в этом чате, что именно нужно скорректировать 🙂',
+            ]);
+
+            return;
+        }
+
+        if ($data === 'quest_cancel_request' && $userId) {
+            $questSummary = trim($message['caption'] ?? ($message['text'] ?? ''));
+            if ($questSummary === '') {
+                $questSummary = '(информация о квесте не передана)';
+            }
+
+            if (function_exists('handleUserSupportMessage')) {
+                $fakeMessage = [
+                    'chat' => [
+                        'id'   => $userId,
+                        'type' => 'private',
+                    ],
+                    'from' => $callback['from'],
+                    'text' => "Клиент запросил отмену или изменение квеста:\n" . $questSummary,
+                ];
+                handleUserSupportMessage($fakeMessage);
+            }
+
+            if (!empty($callback['id'])) {
+                tgRequest('answerCallbackQuery', [
+                    'callback_query_id' => $callback['id'],
+                    'text'              => 'Передали менеджеру ваш запрос по квесту',
+                    'show_alert'        => false,
+                ]);
+            }
+
+            tgRequest('sendMessage', [
+                'chat_id' => $userId,
+                'text'    => 'Передали менеджеру запрос на отмену или изменение квеста. '
+                             . 'Если нужно, напишите детали в ответном сообщении.',
+            ]);
 
             return;
         }
