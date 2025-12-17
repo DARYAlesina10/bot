@@ -2711,18 +2711,6 @@ function handleManagerMessage($message) {
         return;
     }
 
-    $managerId = (int)($message['from']['id'] ?? 0);
-    if (!isSupportChatMember($managerId)) {
-        tgRequest('sendMessage', [
-            'chat_id'           => SUPPORT_CHAT_ID,
-            'message_thread_id' => $threadId,
-            'text'              => 'Клавиатура и быстрые действия доступны только участникам группы поддержки.',
-            'reply_to_message_id' => $message['message_id'] ?? null,
-            'allow_sending_without_reply' => true,
-        ]);
-        return;
-    }
-
     $mappedUserId = support_find_user_by_thread($threadId);
     $context      = resolveThreadUserContext($threadId, $mappedUserId);
     $userId       = $context['user_id'];
@@ -3064,18 +3052,6 @@ function handleCallbackQuery($callback) {
             'text'              => '',
             'show_alert'        => false,
         ]);
-    }
-
-    $managerId = (int)($callback['from']['id'] ?? 0);
-    if (!isSupportChatMember($managerId)) {
-        tgRequest('sendMessage', [
-            'chat_id'           => SUPPORT_CHAT_ID,
-            'message_thread_id' => $threadId,
-            'text'              => 'Клавиатура менеджера доступна только участникам группы поддержки.',
-            'reply_to_message_id' => $message['message_id'] ?? null,
-            'allow_sending_without_reply' => true,
-        ]);
-        return;
     }
 
     $userIdFromData = 0;
@@ -3593,6 +3569,7 @@ $mainMenu = [
         ['Личный кабинет'],
         ['Мои квесты', 'Мой праздник'],
         ['Мои бонусы', 'Мои подарки'],
+        ['Скачать приглашение'],
         ['Паспорт игрока', 'Позвать менеджера'],
     ],
     'resize_keyboard' => true,
@@ -3683,6 +3660,7 @@ if (isset($message['contact'])) {
             ],
             ['Мои квесты', 'Мой праздник'],
             ['Мои бонусы', 'Мои подарки'],
+            ['Скачать приглашение'],
             ['Паспорт игрока', 'Позвать менеджера'],
         ],
         'resize_keyboard'   => true,
@@ -3790,19 +3768,20 @@ if (strpos($text, '/start') === 0) {
 
             $mainMenuWithCabinet = [
                 'keyboard' => [
-                    [
-                        [
-                            'text'    => 'Открыть личный кабинет',
-                            'web_app' => ['url' => $url],
-                        ],
-                    ],
-                    ['Мои квесты', 'Мой праздник'],
-                    ['Мои бонусы', 'Мои подарки'],
-                    ['Паспорт игрока', 'Позвать менеджера'],
+            [
+                [
+                    'text'    => 'Открыть личный кабинет',
+                    'web_app' => ['url' => $url],
                 ],
-                'resize_keyboard'   => true,
-                'one_time_keyboard' => false,
-            ];
+            ],
+            ['Мои квесты', 'Мой праздник'],
+            ['Мои бонусы', 'Мои подарки'],
+            ['Скачать приглашение'],
+            ['Паспорт игрока', 'Позвать менеджера'],
+        ],
+        'resize_keyboard'   => true,
+        'one_time_keyboard' => false,
+    ];
 
             tgRequest('sendMessage', [
                 'chat_id'      => $chatId,
@@ -3996,6 +3975,61 @@ if (strpos($text, '/start') === 0) {
                 'parse_mode'   => 'HTML',
                 'reply_markup' => json_encode($catalogKeyboard, JSON_UNESCAPED_UNICODE),
             ]);
+
+            break;
+
+        case 'Скачать приглашение':
+            $phone = getUserPhone($chatId);
+            if (!$phone) {
+                tgRequest('sendMessage', [
+                    'chat_id'      => $chatId,
+                    'text'         => 'Чтобы получить приглашение, сначала поделитесь номером телефона:',
+                    'reply_markup' => json_encode($phoneKeyboard, JSON_UNESCAPED_UNICODE),
+                ]);
+                break;
+            }
+
+            $invite = buildInvitationLink($phone);
+            if (isset($invite['error'])) {
+                tgRequest('sendMessage', [
+                    'chat_id' => $chatId,
+                    'text'    => 'Не удалось сформировать приглашение: ' . $invite['error'],
+                ]);
+                break;
+            }
+
+            $link = $invite['link'];
+            $date = $invite['date'] ?? '';
+            $time = $invite['time'] ?? '';
+
+            $clientText = "📩 Ваше приглашение";
+            if ($date || $time) {
+                $clientText .= " ({$date} {$time})";
+            }
+            $clientText .= ":\nНажмите кнопку, чтобы открыть.";
+
+            $respJson = tgRequest('sendMessage', [
+                'chat_id'      => $chatId,
+                'text'         => $clientText,
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => 'Открыть приглашение', 'url' => $link],
+                        ],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+            $resp = $respJson ? json_decode($respJson, true) : null;
+
+            if (!empty($resp['ok']) && !empty($resp['result']['message_id'])) {
+                log_bot_message($chatId, (int)$resp['result']['message_id'], $clientText, 'system');
+            } else {
+                $errorText = $resp['description'] ?? 'Не получилось отправить приглашение, попробуйте позже.';
+                tgRequest('sendMessage', [
+                    'chat_id' => $chatId,
+                    'text'    => 'Ошибка отправки приглашения: ' . $errorText,
+                ]);
+            }
 
             break;
 
