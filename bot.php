@@ -1229,6 +1229,92 @@ function buildPrepaymentLink($phone, $amountRub = 3000)
     ];
 }
 
+function parseClientInfoFromCrmText($text)
+{
+    $text = (string)$text;
+    $lines = preg_split('/\r?\n/', $text);
+    $name = '';
+    $username = '';
+    $phone = '';
+
+    foreach ($lines as $line) {
+        $line = trim(strip_tags($line));
+        if (mb_strpos($line, 'Имя:') === 0) {
+            $name = trim(mb_substr($line, mb_strlen('Имя:')));
+        } elseif (mb_strpos($line, 'Username:') === 0) {
+            $username = trim(mb_substr($line, mb_strlen('Username:')));
+        } elseif (mb_strpos($line, 'Телефон:') === 0) {
+            $phone = trim(mb_substr($line, mb_strlen('Телефон:')));
+        }
+    }
+
+    return [
+        'name'     => $name,
+        'username' => $username,
+        'phone'    => $phone,
+    ];
+}
+
+function createSupportThreadForUser($userId, $name = '', $username = '', $phone = null, $headerText = '')
+{
+    $userId = (int)$userId;
+    if ($userId === 0) {
+        return false;
+    }
+
+    $phoneForStore = $phone ?: getUserPhone($userId);
+    $hasEvent = false;
+    if ($phoneForStore) {
+        $event = getEventInfoByPhone($phoneForStore);
+        if ($event && !empty($event['date'])) {
+            $hasEvent = true;
+        }
+    }
+
+    $topicName = trim($name);
+    if ($topicName === '') {
+        $topicName = 'Клиент ' . $userId;
+    }
+    if ($phoneForStore) {
+        $topicName .= ' (' . $phoneForStore . ')';
+    }
+    if ($hasEvent) {
+        $topicName = '🎂 ' . $topicName;
+    }
+
+    $respJson = tgRequest('createForumTopic', [
+        'chat_id' => SUPPORT_CHAT_ID,
+        'name'    => mb_substr($topicName, 0, 128, 'UTF-8'),
+    ]);
+    $resp = $respJson ? json_decode($respJson, true) : null;
+
+    if (empty($resp['ok']) || empty($resp['result']['message_thread_id'])) {
+        logMsg('SUPPORT: createForumTopic failed: ' . $respJson);
+        return false;
+    }
+
+    $threadId = (int)$resp['result']['message_thread_id'];
+
+    $supportText = "🆕 <b>Новый диалог с клиентом</b>\n"
+        . "Имя: " . ($name !== '' ? $name : 'Без имени') . "\n"
+        . "Username: " . ($username !== '' ? $username : '(нет username)') . "\n"
+        . "ID: <code>{$userId}</code>\n"
+        . "Телефон: " . ($phoneForStore ?: '(неизвестен)') . "\n\n"
+        . "<b>Сообщение:</b>\n" . ($headerText !== '' ? $headerText : 'Диалог начат менеджером');
+
+    tgRequest('sendMessage', [
+        'chat_id'           => SUPPORT_CHAT_ID,
+        'message_thread_id' => $threadId,
+        'text'              => $supportText,
+        'parse_mode'        => 'HTML',
+    ]);
+
+    support_register_thread($userId, $threadId, $phoneForStore ?: null);
+    support_update_thread($userId, ['phone' => $phoneForStore ?: null]);
+
+    return $threadId;
+}
+
 
 
 
@@ -2723,6 +2809,7 @@ function handleManagerMessage($message) {
     if ($managerName === '') {
         $managerName = 'Менеджер';
     }
+    $clientSenderName = 'Команда Pandoroom';
 
     $rawText = $message['text'] ?? '';
     $rawText = is_string($rawText) ? trim($rawText) : '';
@@ -2845,7 +2932,7 @@ function handleManagerMessage($message) {
         $fileId = $photo['file_id'];
 
         $cap = $caption !== '' ? $caption : '';
-        $cap = "💬 <b>{$managerName}:</b>\n" . ($cap !== '' ? $cap : '[фото]');
+        $cap = "💬 <b>{$clientSenderName}:</b>\n" . ($cap !== '' ? $cap : '[фото]');
 
         $params = [
             'chat_id'    => $userId,
@@ -2877,7 +2964,7 @@ function handleManagerMessage($message) {
         $label  = stripos($mime, 'pdf') !== false ? 'PDF-файл' : 'документ';
 
         $cap = $caption !== '' ? $caption : '';
-        $cap = "💬 <b>{$managerName}:</b>\n" . ($cap !== '' ? $cap : "[{$label}]");
+        $cap = "💬 <b>{$clientSenderName}:</b>\n" . ($cap !== '' ? $cap : "[{$label}]");
 
         $params = [
             'chat_id'    => $userId,
@@ -2902,7 +2989,7 @@ function handleManagerMessage($message) {
     }
 
     // Обычный текст
-    $textForClient = "💬 <b>{$managerName}:</b>\n" . $rawText;
+    $textForClient = "💬 <b>{$clientSenderName}:</b>\n" . $rawText;
     $resp = tgSendMessage($userId, $textForClient, $replyToUserMsgId, 'chat');
     if (is_array($resp) && !empty($resp['ok']) && !empty($resp['result']['message_id'])) {
         $userMsgId = (int)$resp['result']['message_id'];
@@ -3032,6 +3119,49 @@ function handleCallbackQuery($callback) {
         }
 
         // другие callback’и из лички пока не используем
+        return;
+    }
+
+    // ====== ВЕТКА 1.1. CALLBACK ИЗ GENERAL ЧАТА ПОДДЕРЖКИ (без треда) ======
+    if ($chatId === (int)SUPPORT_CHAT_ID && strpos($data, 'start_thread:') === 0) {
+        $targetUserId = (int)substr($data, strlen('start_thread:'));
+        $existing = $targetUserId ? support_get_thread_by_user($targetUserId) : null;
+
+        if ($existing && !empty($existing['thread_id'])) {
+            if (!empty($callback['id'])) {
+                tgRequest('answerCallbackQuery', [
+                    'callback_query_id' => $callback['id'],
+                    'text'              => 'Тред уже создан для этого клиента.',
+                    'show_alert'        => false,
+                ]);
+            }
+            return;
+        }
+
+        $parsed = parseClientInfoFromCrmText($message['text'] ?? '');
+        $name = $parsed['name'] ?? '';
+        $username = $parsed['username'] ?? '';
+        $phone = $parsed['phone'] ?? null;
+        if (!$phone) {
+            $phone = $targetUserId ? getUserPhone($targetUserId) : null;
+        }
+
+        $threadId = createSupportThreadForUser(
+            $targetUserId,
+            $name,
+            $username,
+            $phone,
+            'Диалог начат менеджером из общего чата.'
+        );
+
+        if (!empty($callback['id'])) {
+            tgRequest('answerCallbackQuery', [
+                'callback_query_id' => $callback['id'],
+                'text'              => $threadId ? 'Тред создан.' : 'Не удалось создать тред.',
+                'show_alert'        => !$threadId,
+            ]);
+        }
+
         return;
     }
 
@@ -3611,6 +3741,16 @@ if (isset($message['contact'])) {
             'chat_id'    => SUPPORT_CHAT_ID,
             'text'       => $crmText,
             'parse_mode' => 'HTML',
+            'reply_markup' => json_encode([
+                'inline_keyboard' => [
+                    [
+                        [
+                            'text' => 'Начать диалог',
+                            'callback_data' => 'start_thread:' . $chatId,
+                        ],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
         ]);
     }
 
