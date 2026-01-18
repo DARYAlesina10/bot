@@ -1315,6 +1315,21 @@ function createSupportThreadForUser($userId, $name = '', $username = '', $phone 
     return $threadId;
 }
 
+function buildSupportThreadLink($threadId)
+{
+    $chatId = (string)abs((int)SUPPORT_CHAT_ID);
+    if (strpos($chatId, '100') === 0) {
+        $chatId = substr($chatId, 3);
+    }
+
+    $threadId = (int)$threadId;
+    if ($chatId === '' || $threadId <= 0) {
+        return null;
+    }
+
+    return 'https://t.me/c/' . $chatId . '/' . $threadId;
+}
+
 
 
 
@@ -3129,9 +3144,11 @@ function handleCallbackQuery($callback) {
 
         if ($existing && !empty($existing['thread_id'])) {
             if (!empty($callback['id'])) {
+                $threadLink = buildSupportThreadLink((int)$existing['thread_id']);
                 tgRequest('answerCallbackQuery', [
                     'callback_query_id' => $callback['id'],
                     'text'              => 'Тред уже создан для этого клиента.',
+                    'url'               => $threadLink,
                     'show_alert'        => false,
                 ]);
             }
@@ -3155,9 +3172,11 @@ function handleCallbackQuery($callback) {
         );
 
         if (!empty($callback['id'])) {
+            $threadLink = $threadId ? buildSupportThreadLink((int)$threadId) : null;
             tgRequest('answerCallbackQuery', [
                 'callback_query_id' => $callback['id'],
                 'text'              => $threadId ? 'Тред создан.' : 'Не удалось создать тред.',
+                'url'               => $threadLink,
                 'show_alert'        => !$threadId,
             ]);
         }
