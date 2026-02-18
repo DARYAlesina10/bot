@@ -109,6 +109,20 @@ function maxApiGetByPath(array $data, $path, $default = null) {
     return $cur;
 }
 
+
+function maxRecipientTargetId($recipient) {
+    if (!is_array($recipient)) {
+        return null;
+    }
+    if (isset($recipient['chat_id']) && $recipient['chat_id'] !== null) {
+        return $recipient['chat_id'];
+    }
+    if (isset($recipient['user_id']) && $recipient['user_id'] !== null) {
+        return $recipient['user_id'];
+    }
+    return null;
+}
+
 function maxApiMethodAliases() {
     return [
         'sendMessage'         => ['POST', '/messages'],
@@ -293,6 +307,7 @@ function maxApiRequest($method, array $params = []) {
     if ($method === 'sendMessage' || $method === 'sendPhoto' || $method === 'sendDocument') {
         $chatId = $params['chat_id'] ?? null;
         if ($chatId === null) {
+            logMsg('MAX SEND ERROR: chat_id is null for method ' . $method . ' params=' . json_encode($params, JSON_UNESCAPED_UNICODE));
             return ['ok' => false, 'description' => 'chat_id обязателен'];
         }
 
@@ -384,7 +399,7 @@ function normalizeMaxUpdate($update) {
                     'message_id' => $message['message_id'] ?? ($message['mid'] ?? null),
                     'text' => maxApiGetByPath($message, 'body.text', ''),
                     'chat' => [
-                        'id' => maxApiGetByPath($message, 'recipient.chat_id') ?? maxApiGetByPath($message, 'chat_id'),
+                        'id' => maxApiGetByPath($message, 'recipient.chat_id') ?? maxApiGetByPath($message, 'recipient.user_id') ?? maxApiGetByPath($message, 'chat_id'),
                         'type' => 'supergroup',
                     ],
                     'message_thread_id' => $message['thread_id'] ?? null,
@@ -401,8 +416,8 @@ function normalizeMaxUpdate($update) {
                 'message_id' => $message['message_id'] ?? ($message['mid'] ?? null),
                 'text' => maxApiGetByPath($message, 'body.text', $message['text'] ?? ''),
                 'chat' => [
-                    'id' => maxApiGetByPath($message, 'recipient.chat_id') ?? ($message['chat_id'] ?? null),
-                    'type' => ($message['chat_type'] ?? 'private'),
+                    'id' => maxApiGetByPath($message, 'recipient.chat_id') ?? maxApiGetByPath($message, 'recipient.user_id') ?? ($message['chat_id'] ?? null),
+                    'type' => ($message['chat_type'] ?? (maxApiGetByPath($message, 'recipient.user_id') ? 'private' : 'supergroup')),
                 ],
                 'from' => [
                     'id' => $sender['user_id'] ?? ($message['user_id'] ?? null),
