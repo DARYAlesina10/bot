@@ -1,2906 +1,363 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Pandoroom — Личный кабинет</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Telegram WebApp JS -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    /* Шрифт под фирменный стиль */
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
-
-    :root {
-      --bg: #f4f5f7;
-      --bg-soft: #fbfbfa;
-      --bg-card: #ffffff;
-      --accent: #a0be38;
-      --accent-soft: rgba(160, 190, 56, 0.14);
-      --accent-strong: #a0be38;
-      --text: #404041;
-      --text-soft: #7b7c7d;
-      --border: #e0e0e0;
-      --danger: #ef4444;
-      --success: #22c55e;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-	
-	#booking-master {
-  position: relative;
-}
-/* Сетка для квестов — 2 карточки в ряд */
-#bm-quests-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-/* Стили для табов меню (торты, шоу, еда и т.д.) */
-.menu-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: flex-start;
-    margin-bottom: 15px;
-}
-/* Контейнер табов */
-.menu-tabs {
-  display: flex;
-  flex-wrap: wrap;      /* если не влезают по ширине — переносятся */
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-/* Сам таб (кнопка/див) */
-.menu-tabs .tab {
-  padding: 8px 14px;
-  min-width: 90px;
-  text-align: center;
-  background: #f4f8e6;
-  border: 2px dashed #a0be38;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #555;
-  cursor: pointer;
-  white-space: nowrap;      /* текст в одну строку */
-  overflow: hidden;
-  text-overflow: ellipsis;  /* если совсем не влазит — троеточие */
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-/* Активный таб */
-.menu-tabs .tab.active {
-  background: #a0be38;
-  color: #fff;
-  border-color: #88a82f;
-}
-
-/* Наведение */
-.menu-tabs .tab:hover {
-  background: #d8ecaa;
-  border-color: #94bb32;
-}
-
-/* На очень маленьких экранах — табы покрупнее и шире */
-@media (max-width: 480px) {
-  .menu-tabs .tab {
-    flex: 1 1 calc(50% - 8px);  /* по 2 таба в строке */
-    min-width: 0;
-    padding: 10px 8px;
-    font-size: 12px;
-  }
-}
-
-.menu-tabs .tab {
-    padding: 10px 18px;
-    min-width: 110px;
-    text-align: center;
-    background: #e7f6d5;
-    border: 2px dashed #a1c63a;
-    border-radius: 30px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: 0.2s;
-}
-/* Общая сетка для карточек (квесты, меню, что угодно) */
-.cards-2col {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;              /* расстояние между карточками */
-}
-
-/* 2 карточки в ряд */
-.cards-2col > .card {
-  box-sizing: border-box;
-  width: calc(50% - 4px);  /* половина строки с учётом gap */
-}
-
-/* На очень маленьких экранах — по одной карточке */
-@media (max-width: 420px) {
-  .cards-2col > .card {
-    width: 100%;
-  }
-}
-
-/* Активный таб */
-.menu-tabs .tab.active {
-    background: #a1c63a;
-    color: #fff;
-    border-color: #7da42a;
-}
-
-/* Hover */
-.menu-tabs .tab:hover {
-    background: #c7e899;
-    border-color: #94bb32;
-}
-
-/* Мобильный вид */
-@media (max-width: 600px) {
-    .menu-tabs .tab {
-        min-width: 45%;
-        padding: 12px;
-        font-size: 15px;
-    }
-}
-
-.quest-card-image img {
-  width: 100%;
-  border-radius: 8px;
-  object-fit: cover;
-}
-.menu-card {
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-}
-
-.menu-card-img-wrap {
-  background: #f5f5f5;
-}
-
-.menu-card-img {
-  display: block;
-}
-
-.booking-master-close {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  border: none;
-  background: transparent;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--text-soft);
-}
-
-.booking-master-close:active {
-  transform: scale(0.92);
-}
-
-    body {
-      font-family: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding: 16px;
-    }
-
-    .app {
-      max-width: 480px;
-      margin: 0 auto;
-    }
-
-    .app-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .bk-highlight {
-      box-shadow: 0 0 0 2px var(--accent);
-      transition: box-shadow 0.3s ease;
-    }
-
-    .avatar {
-      width: 48px;
-      height: 48px;
-      border-radius: 16px;
-      background: var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 22px;
-      color: #ffffff;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-    }
-
-    .app-title-block {
-      flex: 1;
-    }
-
-    .app-title {
-      font-size: 18px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      color: #575757;
-    }
-
-    .app-subtitle {
-      font-size: 12px;
-      color: var(--text-soft);
-    }
-
-    .pill {
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: #ffffff;
-      border: 1px dashed var(--accent);
-      color: var(--accent-strong);
-      white-space: nowrap;
-    }
-
-    .top-widget {
-      background: #ffffff;
-      border-radius: 20px;
-      padding: 14px;
-      border: 1px solid var(--border);
-      margin-bottom: 16px;
-      display: grid;
-      grid-template-columns: 1.5fr 1fr;
-      gap: 10px;
-      box-shadow: 0 8px 18px rgba(0,0,0,0.05);
-    }
-
-    .user-info-main {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .user-name {
-      font-size: 15px;
-      font-weight: 600;
-      color: #575757;
-    }
-
-    .user-phone {
-      font-size: 12px;
-      color: var(--text-soft);
-    }
-
-    .user-bonus {
-      font-size: 13px;
-      margin-top: 4px;
-    }
-
-    .user-bonus strong {
-      color: var(--accent-strong);
-    }
-
-    .passport-mini {
-      border-radius: 14px;
-      padding: 8px;
-      background: var(--accent-soft);
-      border: 1px dashed rgba(160,190,56,0.7);
-      font-size: 11px;
-    }
-
-    .passport-steps-mini {
-      display: flex;
-      gap: 2px;
-      margin-top: 4px;
-    }
-
-    .passport-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.06);
-    }
-
-    .passport-dot.active {
-      background: var(--accent);
-      box-shadow: 0 0 0 3px rgba(160,190,56,0.35);
-    }
-
-    .tabs {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 12px;
-      overflow-x: auto;
-      padding-bottom: 4px;
-    }
-
-    .tab-btn {
-      flex: 1;
-      min-width: 0;
-      border-radius: 999px;
-      padding: 8px 10px;
-      font-size: 12px;
-      border: 1px dashed var(--border);
-      background: #ffffff;
-      color: var(--text-soft);
-      white-space: nowrap;
-      cursor: pointer;
-      font-weight: 500;
-    }
-
-    .tab-btn.active {
-      border-color: var(--accent);
-      background: var(--accent-soft);
-      color: var(--accent-strong);
-    }
-
-    section {
-      display: none;
-    }
-    section.active {
-      display: block;
-    }
-
-    .section-title {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 4px;
-      color: #575757;
-    }
-
-    .section-subtitle {
-      font-size: 12px;
-      color: var(--text-soft);
-      margin-bottom: 12px;
-    }
-
-    .card {
-      border-radius: 16px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      padding: 12px;
-      margin-bottom: 12px;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.03);
-    }
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-      gap: 8px;
-    }
-
-    .card-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #575757;
-    }
-
-    .card-badge {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: var(--bg-soft);
-      border: 1px solid var(--border);
-      color: var(--text-soft);
-      white-space: nowrap;
-    }
-
-    .card-text {
-      font-size: 13px;
-      color: var(--text-soft);
-      margin-bottom: 6px;
-    }
-
-    .card-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      font-size: 12px;
-      color: var(--text-soft);
-      margin-bottom: 4px;
-    }
-
-    .card-pill {
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: var(--bg-soft);
-      border: 1px solid var(--border);
-    }
-
-    .card-actions {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 6px;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-.btn {
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-size: 13px;
-  border: 2px solid var(--accent);
-  background: #ffffff;
-  color: var(--accent-strong);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 600;
-  justify-content: center; /* 👉 центрируем текст в кнопке */
-}
-
-
-    .btn-primary {
-      background: var(--accent-strong);
-      color: #ffffff;
-      border-color: var(--accent-strong);
-    }
-
-    .btn-outline {
-      border-style: dashed;
-    }
-
-    .btn-full {
-      width: 100%;
-      justify-content: center;
-    }
-
-    .btn-danger {
-      background: var(--danger);
-      color: white;
-      border-color: var(--danger);
-    }
-
-    .quests-group-title {
-      font-size: 13px;
-      font-weight: 600;
-      margin: 8px 0 4px;
-      color: var(--text-soft);
-    }
-
-    .quest-card-image {
-      border-radius: 12px;
-      overflow: hidden;
-      margin-bottom: 8px;
-      max-height: 160px;
-    }
-
-    .quest-card-image img {
-      width: 100%;
-      display: block;
-      object-fit: cover;
-    }
-
-    .passport-grid {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .passport-step {
-      border-radius: 12px;
-      padding: 6px 4px;
-      border: 1px dashed rgba(160,190,56,0.7);
-      background: #ffffff;
-      text-align: center;
-      font-size: 11px;
-      color: var(--text-soft);
-    }
-
-    .passport-step span {
-      display: block;
-      font-size: 10px;
-      margin-top: 2px;
-      opacity: 0.8;
-    }
-
-    .passport-step.active {
-      border-style: solid;
-      border-color: var(--accent);
-      background: var(--accent-soft);
-      color: var(--accent-strong);
-      box-shadow: 0 0 0 1px rgba(160,190,56,0.4);
-    }
-
-    .gift-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .gift-card {
-      display: flex;
-      gap: 10px;
-    }
-
-    .gift-img {
-      width: 64px;
-      height: 64px;
-      border-radius: 14px;
-      overflow: hidden;
-      flex-shrink: 0;
-      background: #f3f3f3;
-      border: 1px solid var(--border);
-    }
-
-    .gift-img img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .gift-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    .gift-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #575757;
-    }
-
-    .gift-desc {
-      font-size: 12px;
-      color: var(--text-soft);
-    }
-
-    .gift-meta {
-      font-size: 11px;
-      color: var(--accent-strong);
-    }
-
-    .empty {
-      font-size: 13px;
-      color: var(--text-soft);
-      padding: 8px 0;
-    }
-
-    .footer-actions {
-      position: sticky;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding-top: 12px;
-      margin-top: 8px;
-      background: linear-gradient(to top, rgba(244,245,247,1), rgba(244,245,247,0.4), transparent);
-    }
-
-    .footer-actions-inner {
-      display: flex;
-      gap: 8px;
-    }
-
-    .footer-actions-inner .btn {
-      flex: 1;
-    }
-
-    .muted {
-      font-size: 11px;
-      color: var(--text-soft);
-      margin-top: 4px;
-      text-align: center;
-    }
-
-    .badge-danger {
-      color: var(--danger);
-    }
-
-    .badge-success {
-      color: var(--success);
-    }
-
-    .small {
-      font-size: 11px;
-      color: var(--text-soft);
-    }
-
-    @media (max-width: 360px) {
-      .top-widget {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    /* ==== Модалка бронирования мероприятия в мини-аппе ==== */
-    .event-modal {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      display: none;
-      align-items: flex-end;
-      justify-content: center;
-    }
-    .event-modal.open {
-      display: flex;
-    }
-    .event-modal-backdrop {
-      position: absolute;
-      inset: 0;
-      background: rgba(0,0,0,0.35);
-    }
-    .event-modal-window {
-      position: relative;
-      width: 100%;
-      max-width: 480px;
-      max-height: 100%;
-      background: var(--bg);
-      border-radius: 24px 24px 0 0;
-      padding: 16px;
-      box-shadow: 0 -8px 24px rgba(0,0,0,0.22);
-      overflow-y: auto;
-    }
-    .event-modal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .event-modal-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #575757;
-    }
-    .event-modal-close {
-      border: none;
-      background: transparent;
-      font-size: 18px;
-      cursor: pointer;
-      padding: 4px;
-      line-height: 1;
-    }
-    .event-modal-body {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .event-field-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 6px;
-    }
-    .event-field-label {
-      font-size: 12px;
-      color: var(--text-soft);
-    }
-    .event-input,
-    .event-select,
-    .event-textarea {
-      width: 100%;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      padding: 7px 9px;
-      font-size: 13px;
-      font-family: inherit;
-      background: #fff;
-    }
-    .event-textarea {
-      min-height: 60px;
-      resize: vertical;
-    }
-    .event-inline {
-      display: flex;
-      gap: 8px;
-    }
-    .event-inline > * {
-      flex: 1;
-    }
-    .event-modal-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 4px;
-    }
-    .event-badge-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 2px;
-    }
-    .event-toggle-pill {
-      border-radius: 999px;
-      padding: 5px 10px;
-      border: 1px solid var(--border);
-      background: #fff;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .event-toggle-pill.active {
-      border-color: var(--accent);
-      background: var(--accent-soft);
-      color: var(--accent-strong);
-    }
-    #event-status {
-      min-height: 14px;
-    }
-    .booking-input {
-      width: 100%;
-      margin-top: 3px;
-      padding: 6px 8px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      font-size: 13px;
-    }
-
-    .booking-input.error {
-      border-color: var(--danger);
-    }
-
-    .booking-step-tab {
-      flex: 0 0 auto;
-      min-width: auto;
-    }
-
-    .bk-card-selectable {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 8px;
-      margin-bottom: 6px;
-      cursor: pointer;
-    }
-
-    .bk-card-selectable.active {
-      border-color: var(--accent);
-      background: var(--accent-soft);
-    }
-
-  </style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный кабинет Pandoroom</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="app">
-  <header class="app-header">
-    <div class="avatar" id="avatar-initials">P</div>
-    <div class="app-title-block">
-      <div class="app-title">Личный кабинет Pandoroom</div>
-      <div class="app-subtitle">Ваши квесты, бонусы, подарки и праздники</div>
-    </div>
-    <div class="pill">Beta</div>
-  </header>
+    <div class="dashboard-container">
+        <main class="main-content">
+            <header class="dashboard-header">
+                <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/d33343f8e0801ab1d87365fdd88670dd8441abc6?placeholderIfAbsent=true"
+                     alt="Background" class="header-background">
 
-  <div class="top-widget">
-    <div class="user-info-main">
-      <div class="user-name" id="user-name">Гость Pandoroom</div>
-      <div class="user-phone" id="user-phone">Телефон не указан</div>
-      <div class="user-bonus" id="user-bonus">Бонусы: <strong>—</strong></div>
-    </div>
-    <div class="passport-mini">
-      <div class="small">Паспорт игрока</div>
-      <div class="small" id="passport-mini-label">Уровень: — / 12</div>
-      <div class="passport-steps-mini" id="passport-mini-steps"></div>
-    </div>
-  </div>
+                <div class="logo-section">
+                    <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/fe7a1f85682331b46693d2353fb2535ae332cade?placeholderIfAbsent=true"
+                         alt="Pandoroom Logo" class="logo">
+                    <h1 class="site-title">Личный кабинет Pandoroom</h1>
+                </div>
 
-  <!-- БЛОК СТАТИСТИКИ УБРАН -->
+                <nav class="main-navigation">
+                    <button class="nav-button inactive">Квесты</button>
+                    <button class="nav-button active">Праздники</button>
+                    <button class="nav-button active">Подарки</button>
+                    <button class="nav-button active">Паспорт</button>
+                </nav>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="quests">Квесты</button>
-    <button class="tab-btn" data-tab="party">Праздник</button>
-    <button class="tab-btn" data-tab="gifts">Подарки</button>
-    <button class="tab-btn" data-tab="passport">Паспорт</button>
-  </div>
+                <section class="user-profile-card">
+                    <div class="profile-content">
+                        <div class="user-info">
+                            <h2 class="user-name">Константинов<br>Константин</h2>
+                            <p class="user-phone">+7 984 189 18 95</p>
+                            <p class="user-bonus">
+                                <span>Бонусы:</span>
+                                <span class="bonus-amount">8 Р</span>
+                            </p>
+                        </div>
 
-  <!-- КВЕСТЫ -->
-  <section id="tab-quests" class="active">
-    <div class="section-title">Мои квесты</div>
-    <div class="section-subtitle">Все прошедшие и предстоящие игры по вашему номеру телефона.</div>
-    <div id="quests-container">
-      <div class="empty">Загружаем квесты…</div>
-    </div>
-  </section>
+                        <div class="passport-section">
+                            <div class="passport-card">
+                                <h3 class="passport-title">Паспорт игрока</h3>
+                                <div class="level-info">
+                                    <div class="level-text">
+                                        <span class="level-label">Уровень</span>
+                                        <span class="level-value">7 / 12</span>
+                                    </div>
+                                    <div class="progress-indicators">
+                                        <div class="progress-dot filled"></div>
+                                        <div class="progress-dot filled"></div>
+                                        <div class="progress-dot filled"></div>
+                                        <div class="progress-dot empty"></div>
+                                        <div class="progress-dot empty"></div>
+                                        <div class="progress-dot empty"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
-  <!-- ПРАЗДНИК -->
-  <section id="tab-party">
-    <div class="section-title">Праздник</div>
-    <!-- ОБНОВЛЁН ПОДЗАГОЛОВОК -->
-    <div class="section-subtitle">
-      Здесь отображается ближайший День Рождения или мероприятие в Pandoroom.
-      Вы можете посмотреть детали, внести предоплату, скачать меню и получить пригласительный для гостей.
-    </div>
-    <div id="party-container">
-      <div class="empty">Загружаем данные о празднике…</div>
-    </div>
-  </section>
+                <section class="statistics-section">
+                    <h2 class="statistics-title">Ваша статистика</h2>
+                    <div class="stats-divider"></div>
 
-  <!-- ПОДАРКИ -->
-  <section id="tab-gifts">
-    <div class="section-title">Мои подарки</div>
-    <div class="section-subtitle">Ваши подарки, флаеры и специальные предложения.</div>
-    <div id="gifts-container">
-      <div class="empty">Загружаем подарки…</div>
-    </div>
-  </section>
+                    <div class="stats-grid-top">
+                        <div class="stat-card">
+                            <p class="stat-label">Бонусы</p>
+                            <p class="stat-value">8 Р</p>
+                        </div>
+                        <div class="stat-card">
+                            <p class="stat-label">Уровень паспорта</p>
+                            <p class="stat-value">7</p>
+                        </div>
+                        <div class="stat-card">
+                            <p class="stat-label">Активных<br>подарков</p>
+                            <p class="stat-value">4</p>
+                        </div>
+                    </div>
 
-  <!-- ПАСПОРТ -->
-  <section id="tab-passport">
-    <div class="section-title">Паспорт игрока</div>
-    <div class="section-subtitle">Каждый квест приближает к новым подаркам. Следите за прогрессом.</div>
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Пройдено квестов: <span id="passport-quests-done">—</span></div>
-        <div class="card-badge">Уровень: <span id="passport-level">—</span> / 12</div>
-      </div>
-      <div class="card-text" id="passport-next-gift">
-        Информация о следующем подарке появится после обновления данных.
-      </div>
-      <div class="passport-grid" id="passport-grid"></div>
-    </div>
-  </section>
+                    <div class="stats-grid-bottom">
+                        <div class="stat-card">
+                            <p class="stat-label">Предстоящих квестов</p>
+                            <p class="stat-value">122</p>
+                        </div>
+                        <div class="stat-card">
+                            <p class="stat-label">Пройдено<br>квестов</p>
+                            <p class="stat-value">7</p>
+                        </div>
+                        <div class="stat-card">
+                            <p class="stat-label">Прошедших квестов</p>
+                            <p class="stat-value">0</p>
+                        </div>
+                    </div>
+                </section>
 
-  <div class="footer-actions">
-   <div class="footer-actions-inner">
-  <button class="btn btn-primary" id="btn-want-quest">Хочу квест</button>
-  <button class="btn btn-outline" id="btn-add-event">Хочу праздник</button>
-</div>
+                <section class="quests-section">
+                    <h2 class="section-title">Мои квесты</h2>
+                    <p class="section-description">Все прошедшие и предстоящие игры по вашему номеру телефона</p>
 
-    <div class="muted">Нажимая на кнопки, вы отправляете запрос менеджеру Pandoroom.</div>
-  </div>
+                    <div class="quest-date-time">
+                        <div class="date-badge">29.11.2025</div>
+                        <div class="time-badge">22:40</div>
+                    </div>
 
-  <!-- МОДАЛЬНОЕ ОКНО: БРОНИРОВАНИЕ МЕРОПРИЯТИЯ -->
-  <div id="event-modal" class="event-modal">
-    <div class="event-modal-backdrop"></div>
-    <div class="event-modal-window">
-      <div class="event-modal-header">
-        <div class="event-modal-title">Онлайн бронирование праздника</div>
-        <button type="button" class="event-modal-close">✕</button>
-      </div>
-      <div class="event-modal-body">
-        <div class="section-subtitle">
-          Заполните параметры праздника. Заявка уйдёт менеджеру Pandoroom, он свяжется с вами для подтверждения.
-        </div>
+                    <div class="quest-type-badge">Без аниматора</div>
+                </section>
+            </header>
 
-        <div class="card">
-          <!-- БЛОК 1: Именинник и дата -->
-          <div class="event-field-group event-inline">
-            <div>
-              <div class="event-field-label">Имя именинника</div>
-              <input id="ev-child-name" type="text" class="event-input" placeholder="Например, Артём">
+            <section class="quest-cards-section">
+                <article class="quest-card">
+                    <div class="quest-card-content">
+                        <figure class="quest-image">
+                            <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/2de8da0ebbcf8a9910704c393f9951fd24a577a1?placeholderIfAbsent=true"
+                                 alt="Гарри Поттер и Философский камень" class="quest-poster">
+                        </figure>
+
+                        <div class="quest-details">
+                            <h3 class="quest-title">Гарри Поттер<br>и Философский камень</h3>
+                            <div class="quest-meta">
+                                <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/2d225346600fff624bcdeceddaeac224f3d98f05?placeholderIfAbsent=true"
+                                     alt="Quest info" class="quest-icon">
+                                <span class="quest-duration">60 минут</span>
+                                <span class="quest-players">2-6 игроков</span>
+                                <span class="quest-age">12+</span>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="quest-card">
+                    <div class="quest-card-content">
+                        <figure class="quest-image">
+                            <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/db8572a2a44ffdc21b1b5bb7b1c35249ceed4b70?placeholderIfAbsent=true"
+                                 alt="Сокровища пиратов" class="quest-poster">
+                        </figure>
+
+                        <div class="quest-details">
+                            <div class="quest-schedule">
+                                <div class="date-badge">29.11.2025</div>
+                                <div class="time-badge">22:40</div>
+                            </div>
+                            <div class="animator-badge">С аниматором</div>
+                            <h3 class="quest-title">Сокровища пиратов</h3>
+                            <div class="quest-meta">
+                                <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/564362b6e9804a776daebde57f6475df566d05d5?placeholderIfAbsent=true"
+                                     alt="Quest info" class="quest-icon">
+                                <span class="quest-duration">60 минут</span>
+                                <span class="quest-players">2-6 игроков</span>
+                                <span class="quest-age">12+</span>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <section class="party-planning">
+                    <h2 class="party-title">Новый праздник</h2>
+                    <p class="party-description">Шаг за шагом выберите дату, стол, квест<br>и меню для праздника, а также украшения</p>
+
+                    <div class="step-divider"></div>
+
+                    <h3 class="step-title">
+                        <span class="step-number">Шаг 2 из 4:</span>
+                        Выбор стола
+                    </h3>
+
+                    <p class="availability-message">На выбранное время свободных столов не найдено.<br>Ближайшее свободное время: 15:00</p>
+
+                    <figure class="table-image">
+                        <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/ce1e9856c21e1d0783d0860d92aa66a683505b59?placeholderIfAbsent=true"
+                             alt="Зал Cafe" class="table-photo">
+                    </figure>
+
+                    <div class="table-schedule">
+                        <span class="table-date">25.07.2026</span>
+                        <span class="table-time">15:00</span>
+                    </div>
+
+                    <h4 class="table-name">Зал Cafe, стол №3 + 4</h4>
+                    <p class="table-description">До 14 гостей. 14 удобных стульев.<br>Доступ в игровую зону</p>
+
+                    <button class="select-table-btn">Выбрать этот стол</button>
+
+                    <button class="next-step-btn">Далее — шаг 3: выберите квест</button>
+                    <button class="back-step-btn">← вернуться на шаг назад</button>
+                </section>
+            </section>
+        </main>
+
+        <aside class="order-summary">
+            <h3 class="summary-title">Итого</h3>
+            <div class="summary-schedule">
+                <span class="summary-date">25.07.2026</span>
+                <span class="summary-time">13:30</span>
             </div>
-            <div>
-              <div class="event-field-label">Возраст</div>
-              <input id="ev-child-age" type="number" class="event-input" placeholder="7">
-            </div>
-          </div>
+            <p class="summary-guest">Константин (12 лет)</p>
+            <p class="summary-guests">
+                <span>Гостей:</span>
+                8 (дети: 12, взрослые: 4)
+            </p>
+            <p class="summary-table">
+                <span>Стол:</span>
+                №3+4 — 15:00
+            </p>
+            <p class="summary-total">Сумма: 143 000 Р</p>
+        </aside>
 
-          <div class="event-field-group event-inline">
-            <div>
-              <div class="event-field-label">Дата праздника</div>
-              <input id="ev-date" type="date" class="event-input">
-            </div>
-            <div>
-              <div class="event-field-label">Время начала</div>
-              <input id="ev-time" type="time" class="event-input">
-            </div>
-          </div>
+        <section class="quest-selection-step">
+            <div class="step-content">
+                <h2 class="party-title">Новый праздник</h2>
+                <p class="party-description">Шаг за шагом выберите дату, стол, квест<br>и меню для праздника, а также украшения</p>
 
-          <div class="event-field-group event-inline">
-            <div>
-              <div class="event-field-label">Детей</div>
-              <input id="ev-kids" type="number" class="event-input" placeholder="Кол-во детей">
+                <div class="step-divider"></div>
+
+                <h3 class="step-title">
+                    <span class="step-number">Шаг 3 из 4:</span>
+                    Выбор квеста
+                </h3>
+
+                <p class="step-description">Выберите один или несколько квестов</p>
+
+                <div class="quest-selection-grid">
+                    <div class="quest-option">
+                        <figure class="quest-option-image">
+                            <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/c50257bde77a32579eda877fc90e44d405c42707?placeholderIfAbsent=true"
+                                 alt="Чумной доктор" class="quest-bg">
+                            <div class="quest-option-info">
+                                <div class="quest-price-badge">2 000 Р</div>
+                                <div class="quest-age-badge">12+</div>
+                            </div>
+                            <h4 class="quest-option-title">Чумной доктор</h4>
+                        </figure>
+                    </div>
+
+                    <div class="quest-option">
+                        <figure class="quest-option-image">
+                            <img src="https://api.builder.io/api/v1/image/assets/9619b4f14ec5406ba10277256bbc5a9f/60c21037253b4b473f4f9ce3efaf86322eca43b9?placeholderIfAbsent=true"
+                                 alt="Resident Evil" class="quest-bg">
+                            <div class="quest-option-info">
+                                <div class="quest-price-badge">2 000 Р</div>
+                                <div class="quest-age-badge">12+</div>
+                            </div>
+                            <h4 class="quest-option-title">Resident Evil</h4>
+                        </figure>
+                    </div>
+                </div>
+
+                <div class="time-slots">
+                    <div class="time-slot-group">
+                        <button class="time-slot">13:10</button>
+                        <button class="time-slot">14:30</button>
+                        <button class="time-slot">15:50</button>
+                    </div>
+                    <div class="time-slot-group">
+                        <button class="time-slot">13:10</button>
+                        <button class="time-slot">14:30</button>
+                        <button class="time-slot">15:50</button>
+                    </div>
+                </div>
+
+                <div class="quest-selection-buttons">
+                    <button class="select-quest-btn">Выбрать этот квест</button>
+                    <button class="select-quest-btn">Выбрать этот квест</button>
+                </div>
+
+                <button class="next-step-btn">Далее — шаг 3: выберите квест</button>
+                <button class="back-step-btn">← вернуться на шаг назад</button>
             </div>
-            <div>
-              <div class="event-field-label">Взрослых</div>
-              <input id="ev-adults" type="number" class="event-input" placeholder="Кол-во взрослых">
+
+            <aside class="order-summary-step3">
+                <h3 class="summary-title">Итого</h3>
+                <div class="summary-schedule">
+                    <span class="summary-date">25.07.2026</span>
+                    <span class="summary-time">13:30</span>
+                </div>
+                <p class="summary-guest">Константин (12 лет)</p>
+                <p class="summary-guests">
+                    <span>Гостей:</span>
+                    8 (дети: 12, взрослые: 4)
+                </p>
+                <p class="summary-table">
+                    <span>Стол:</span>
+                    №3+4 — 15:00
+                </p>
+                <p class="summary-quest">
+                    <span>Квест:</span>
+                    Гарри Поттер и Философский камень (14:30)
+                </p>
+                <p class="summary-total">Сумма: 143 000 Р</p>
+            </aside>
+        </section>
+
+        <section class="menu-selection-step">
+            <div class="step-content">
+                <h2 class="party-title">Новый праздник</h2>
+                <p class="party-description">Шаг за шагом выберите дату, стол, квест<br>и меню для праздника, а также украшения</p>
+
+                <div class="step-divider"></div>
+
+                <h3 class="step-title">
+                    <span class="step-number">Шаг 4 из 4:</span>
+                    Меню и опции
+                </h3>
+
+                <p class="step-description">Выберите торт, шоу-программу, украшения и блюда для вашего праздника</p>
+
+                <nav class="menu-categories">
+                    <div class="category-group">
+                        <button class="category-btn inactive">Торты</button>
+                        <button class="category-btn active">Горячее</button>
+                    </div>
+                    <div class="category-group">
+                        <div class="category-subgroup">
+                            <button class="category-btn active">Шоу</button>
+                            <button class="category-btn highlighted">Украшения</button>
+                            <button class="category-btn active">Салат</button>
+                        </div>
+                        <div class="category-subgroup">
+                            <button class="category-btn active">Гарниры</button>
+                            <button class="category-btn active">Фри</button>
+                            <button class="category-btn active">Пицца</button>
+                        </div>
+                    </div>
+                    <div class="category-group">
+                        <button class="category-btn active">Сладкое</button>
+                        <button class="category-btn active">Напитки</button>
+                    </div>
+                </nav>
+
+                <button class="submit-order-btn">Отправить заявку на праздник</button>
+                <button class="back-step-btn">← вернуться на шаг назад</button>
             </div>
-          </div>
 
-          <!-- БЛОК 2: Формат и зал -->
-          <div class="event-field-group">
-            <div class="event-field-label">Формат праздника</div>
-            <div class="event-badge-row" id="ev-format-group">
-              <button type="button" class="event-toggle-pill active" data-value="quest_plus_party">Квест + праздник</button>
-              <button type="button" class="event-toggle-pill" data-value="only_party">Только праздник (без квеста)</button>
-              <button type="button" class="event-toggle-pill" data-value="only_quest">Только квест</button>
-            </div>
-          </div>
-
-      
-
-          <!-- БЛОК 3: Торт / шоу / украшения -->
-          <div class="event-field-group">
-            <div class="event-field-label">Торт</div>
-            <div class="event-badge-row" id="ev-cake-group">
-              <button type="button" class="event-toggle-pill active" data-value="need">Нужен торт от Pandoroom</button>
-              <button type="button" class="event-toggle-pill" data-value="own">Будет свой торт</button>
-              <button type="button" class="event-toggle-pill" data-value="no">Без торта</button>
-            </div>
-          </div>
-
-          <div class="event-field-group">
-            <div class="event-field-label">Шоу-программа</div>
-            <div class="event-badge-row" id="ev-show-group">
-              <button type="button" class="event-toggle-pill active" data-value="need">Нужна шоу-программа</button>
-              <button type="button" class="event-toggle-pill" data-value="no">Шоу-программа не нужна</button>
-            </div>
-          </div>
-
-          <div class="event-field-group">
-            <div class="event-field-label">Украшение зала</div>
-            <div class="event-badge-row" id="ev-decor-group">
-              <button type="button" class="event-toggle-pill active" data-value="need">Нужны украшения</button>
-              <button type="button" class="event-toggle-pill" data-value="own">Будут свои украшения</button>
-              <button type="button" class="event-toggle-pill" data-value="no">Без украшений</button>
-            </div>
-          </div>
-
-          <!-- БЛОК 4: Комментарий -->
-          <div class="event-field-group">
-            <div class="event-field-label">Пожелания к празднику</div>
-            <textarea id="ev-comment" class="event-textarea" placeholder="Например: тематика праздника, любимые герои, особенности гостей..."></textarea>
-          </div>
-        </div>
-
-        <div class="event-modal-actions">
-          <button type="button" class="btn btn-primary btn-full" id="event-submit">Отправить заявку</button>
-          <button type="button" class="btn btn-outline btn-full" id="event-cancel">Отменить</button>
-        </div>
-        <div class="muted" id="event-status"></div>
-      </div>
+            <aside class="order-summary-final">
+                <div class="summary-header">
+                    <h3 class="summary-title">Итого</h3>
+                    <p class="summary-guest">Константин (12 лет)</p>
+                </div>
+                <div class="summary-schedule">
+                    <span class="summary-date">25.07.2026</span>
+                    <span class="summary-time">13:30</span>
+                </div>
+                <p class="summary-guests">
+                    <span>Гостей:</span>
+                    8 (дети: 12, взрослые: 4)
+                </p>
+                <p class="summary-table">
+                    <span>Стол:</span>
+                    №3+4 — 15:00
+                </p>
+                <p class="summary-quest">
+                    <span>Квест:</span>
+                    Гарри Поттер и Философский камень (14:30)
+                </p>
+                <p class="summary-items">Красный бархат 1 кг х 1, Картофель гриль х 1, Крио-кухня х 1, Милкшейк классический 3 л х 1, Детское шампанское х 1, Колпачки (10 шт) х 1</p>
+                <p class="summary-total">Сумма: 143 000 Р</p>
+            </aside>
+        </section>
     </div>
-  </div>
 
- <div id="booking-master" class="card" style="display:none; margin-top: 12px;">
-<button type="button" class="booking-master-close" id="booking-master-close">✕</button>
-    <div class="section-title">Новый праздник</div>
-    <div class="section-subtitle">
-      Шаг за шагом выберите дату, стол, квест и меню для праздника и украшения.
-    </div>
-
-    <!-- ШАГ 1: базовая информация -->
-    <div id="bm-step-1">
-      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
-        <div style="flex:1 1 48%;">
-          <label class="small">Имя именинника</label>
-          <input id="bm-name" type="text" class="booking-input" placeholder="Иван" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #ddd;font-size:13px;">
-        </div>
-        <div style="flex:1 1 48%;">
-          <label class="small">Возраст</label>
-          <input id="bm-age" type="number" min="1" class="booking-input" placeholder="10" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #ddd;font-size:13px;">
-        </div>
-        <div style="flex:1 1 48%;">
-          <label class="small">Дата</label>
-          <input id="bm-date" type="date" class="booking-input" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #ddd;font-size:13px;">
-        </div>
-        <div style="flex:1 1 48%;">
-          <label class="small">Время начала</label>
-          <input id="bm-time" type="time" class="booking-input" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #ddd;font-size:13px;">
-        </div>
-        <div style="flex:1 1 48%;">
-          <label class="small">Дети</label>
-          <input id="bm-kids" type="number" min="0" class="booking-input" placeholder="8" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #ddd;font-size:13px;">
-        </div>
-        <div style="flex:1 1 48%;">
-          <label class="small">Взрослые</label>
-          <input id="bm-adults" type="number" min="0" class="booking-input" placeholder="4" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #ddd;font-size:13px;">
-        </div>
-      </div>
-
-   
-
-      <button type="button" class="btn btn-primary btn-full" id="bm-next-to-tables">
-        Далее: выбрать стол
-      </button>
-    </div>
-
-    <!-- ШАГ 2: столы -->
-    <div id="bm-step-2" style="display:none; margin-top:12px;">
-      <div class="section-title">Шаг 2. Выбор стола</div>
-      <div class="section-subtitle" id="bm-tables-message">Загружаем доступные столы…</div>
-      <div id="bm-tables-list" style="margin-top:8px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;"></div>
-      <button type="button" class="btn btn-outline btn-full" id="bm-back-to-1" style="margin-top:8px;">Назад</button>
-      <button type="button" class="btn btn-primary btn-full" id="bm-next-to-quest" style="margin-top:6px;" >
-        Далее: выбрать квест
-      </button>
-    </div>
-
-    <!-- ШАГ 3: квест -->
-    <div id="bm-step-3" class="cards-2col" style="display:none; margin-top:12px;">
-      <div class="section-title">Шаг 3. Квест</div>
-      <div class="section-subtitle">Выберите свободное время квеста в указанный день.</div>
-      <div id="bm-quests-message" class="section-subtitle">Загружаем свободные слоты…</div>
-      <div id="bm-quests-list" style="margin-top:8px; display:flex; flex-direction:column; gap:8px;"></div>
-      <button type="button" class="btn btn-outline btn-full" id="bm-back-to-2" style="margin-top:8px;">Назад</button>
-      <button type="button" class="btn btn-primary btn-full" id="bm-next-to-menu" style="margin-top:6px;" >
-        Далее: торт, шоу, украшения
-      </button>
-    </div>
-
-  <!-- ШАГ 4: меню из iiko -->
-<div id="bm-step-4"  class="cards-2col" style="display:none; margin-top:12px;">
-  <div class="section-title">Шаг 4. Меню и опции</div>
-  <div class="section-subtitle">
-    Выберите торт, шоу-программу, украшения и блюда для вашего праздника.
-  </div>
-
- <div class="menu-tabs">
-  <div class="tab active" data-type="torts">Торт</div>
-  <div class="tab" data-type="show">Шоу</div>
-  <div class="tab" data-type="decor">Украшения</div>
-  <div class="tab" data-type="salads">Салат</div>
-  <div class="tab" data-type="hot">Горячее</div>
-  <div class="tab" data-type="garnish">Гарниры</div>
-  <div class="tab" data-type="fries">Фри</div>
-  <div class="tab" data-type="pizza">Пицца</div>
-  <div class="tab" data-type="sweets">Сладкое</div>
-  <div class="tab" data-type="drinks">Напитки</div>
-</div>
-
-
-  <div id="bm-menu-lists">
-    <div id="bm-menu-torts"   class="bm-menu-pane" style="display:block;"></div>
-    <div id="bm-menu-show"    class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-decor"   class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-snacks"  class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-salads"  class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-hot"     class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-garnish" class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-fries"   class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-pizza"   class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-sweets"  class="bm-menu-pane" style="display:none;"></div>
-    <div id="bm-menu-drinks"  class="bm-menu-pane" style="display:none;"></div>
-  </div>
-
-  <button type="button" class="btn btn-outline btn-full" id="bm-back-to-3" style="margin-top:8px;">Назад</button>
-  <button type="button" class="btn btn-primary btn-full" id="bm-finish" style="margin-top:6px;">
-    Завершить: отправить заявку
-  </button>
-</div>
-
-
-    <!-- Итоговая мини-корзина -->
-    <div id="bm-summary" style="margin-top:12px; border-top:1px solid #eee; padding-top:8px;">
-      <div class="section-title">Итого</div>
-      <div id="bm-summary-list" class="small" style="margin-top:4px;"></div>
-      <div class="small" style="margin-top:4px;">
-        Сумма: <strong><span id="bm-summary-total">0</span> ₽</strong> (с учётом сервисного сбора будет добавлено на сервере)
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-  // =============== УТИЛИТЫ ===============  
-  function qs(selector) { return document.querySelector(selector); }
-  function qsa(selector) { return Array.from(document.querySelectorAll(selector)); }
-
-  // Глобальное состояние для дашборда (можно оставить, но видимую карточку мы убрали)
-  const overviewState = {
-    bonus: null,
-    questsDone: null,
-    upcoming: null,
-    past: null,
-    gifts: null,
-    level: null,
-  };
-
-  function updateOverview(patch) {
-    Object.assign(overviewState, patch || {});
-
-    const card = qs('#overview-card');
-    const row  = qs('#overview-row');
-    if (!card || !row) return;
-
-    row.innerHTML = '';
-    let hasAny = false;
-
-    function addPill(text) {
-      const div = document.createElement('div');
-      div.className = 'card-pill';
-      div.textContent = text;
-      row.appendChild(div);
-      hasAny = true;
-    }
-
-    const st = overviewState;
-
-    if (st.bonus !== null)      addPill('Бонусы: ' + st.bonus + ' ₽');
-    if (st.questsDone !== null) addPill('Пройдено квестов: ' + st.questsDone);
-    if (st.upcoming !== null)   addPill('Предстоящих квестов: ' + st.upcoming);
-    if (st.past !== null)       addPill('Прошедших квестов: ' + st.past);
-    if (st.gifts !== null)      addPill('Активных подарков: ' + st.gifts);
-    if (st.level !== null)      addPill('Уровень паспорта: ' + st.level);
-
-    card.style.display = hasAny ? 'block' : 'none';
-  }
-
-  function getQueryParams() {
-    const params = new URLSearchParams(window.location.search);
-    const obj = {};
-    for (const [key, value] of params.entries()) {
-      obj[key] = value;
-    }
-    return obj;
-  }
-// Парсер даты в формате "03.12.2025 22:00" (дд.мм.гггг чч:мм)
-function parseRuDatetime(str) {
-  if (!str) return null;
-  if (str instanceof Date) return str;
-
-  const raw = String(str).trim();
-  if (!raw) return null;
-
-  const [datePart, timePart = ''] = raw.split(' ');
-  const dateBits = datePart.split('.');
-  if (dateBits.length !== 3) return null;
-
-  const [dayStr, monthStr, yearStr] = dateBits;
-  const [hourStr = '0', minuteStr = '0'] = timePart.split(':');
-
-  const day = Number(dayStr);
-  const month = Number(monthStr);
-  const year = Number(yearStr);
-  const hour = Number(hourStr);
-  const minute = Number(minuteStr);
-
-  if (!day || !month || !year) return null;
-
-  const d = new Date(year, month - 1, day, hour, minute);
-  if (isNaN(d.getTime())) return null;
-
-  return d;
-}
-
-// Нормальный сплит квестов по времени, учитывая наш RU-формат
-function splitQuestsByTime(quests) {
-  const now = Date.now();
-  const upcoming = [];
-  const past = [];
-
-  quests.forEach(q => {
-    let ts = null;
-    let dt = null;
-
-    const keys = ['time', 'datetime', 'book_time', 'start'];
-    for (const k of keys) {
-      if (!q[k]) continue;
-      const val = String(q[k]);
-      // Сначала пробуем наш формат дд.мм.гггг
-      dt = parseRuDatetime(val);
-      // Если не получилось — пробуем стандартный парсер на всякий случай
-      if (!dt) {
-        const tmp = new Date(val);
-        if (!isNaN(tmp.getTime())) dt = tmp;
-      }
-      if (dt) {
-        ts = dt.getTime();
-        break;
-      }
-    }
-
-    // если вообще не смогли распарсить — считаем будущим, чтобы не прятать
-    if (ts === null) {
-      upcoming.push(q);
-    } else if (ts >= now) {
-      q._ts = ts;
-      q._dateObj = dt;
-      upcoming.push(q);
-    } else {
-      q._ts = ts;
-      q._dateObj = dt;
-      past.push(q);
-    }
-  });
-
-  upcoming.sort((a, b) => (a._ts || 0) - (b._ts || 0));
-  past.sort((a, b) => (b._ts || 0) - (a._ts || 0));
-
-  return { upcoming, past };
-}
-
-// Форматирование даты: на вход можно строку ИЛИ Date
-function formatDateTime(input) {
-  if (!input) return '';
-
-  let d = null;
-
-  if (input instanceof Date) {
-    d = input;
-  } else {
-    // сначала пробуем наш формат
-    d = parseRuDatetime(input);
-    // если не получилось — fallback к стандартному парсеру
-    if (!d) {
-      const tmp = new Date(input);
-      if (!isNaN(tmp.getTime())) d = tmp;
-    }
-  }
-
-  if (!d || isNaN(d.getTime())) {
-    // если вообще не распарсилось — возвращаем как есть
-    return String(input);
-  }
-
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-
-  return `${dd}.${mm}.${yyyy} ${hh}:${mi}`;
-}
-
-
-  // =============== TELEGRAM INIT ===============  
-  const tg = window.Telegram ? window.Telegram.WebApp : null;
-  if (tg) {
-    tg.expand();
-  }
-
-  // ====== МОДАЛКА (если захочешь использовать) ======  
-  function openEventModal() {
-    const modal = qs('#event-modal');
-    if (!modal) return;
-    modal.classList.add('open');
-    const status = qs('#event-status');
-    if (status) status.textContent = '';
-  }
-
-  function closeEventModal() {
-    const modal = qs('#event-modal');
-    if (!modal) return;
-    modal.classList.remove('open');
-  }
-
-  function initEventToggleGroup(groupEl) {
-    if (!groupEl) return;
-    groupEl.addEventListener('click', (e) => {
-      const btn = e.target.closest('.event-toggle-pill');
-      if (!btn) return;
-      groupEl.querySelectorAll('.event-toggle-pill').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
-  }
-
-  function getActiveToggleValue(groupId, fallback) {
-    const group = qs(groupId);
-    if (!group) return fallback || null;
-    const active = group.querySelector('.event-toggle-pill.active');
-    return active ? active.getAttribute('data-value') : (fallback || null);
-  }
-
-  // =============== МИНИ-ПАСПОРТ СВЕРХУ ===============  
-  function renderMiniPassport(level) {
-    const lvl = Number(level) || 0;
-    qs('#passport-mini-label').textContent = `Уровень: ${lvl || '—'} / 12`;
-
-    const container = qs('#passport-mini-steps');
-    container.innerHTML = '';
-    for (let i = 1; i <= 6; i++) {
-      const dot = document.createElement('div');
-      dot.className = 'passport-dot' + (lvl >= i * 2 ? ' active' : '');
-      container.appendChild(dot);
-    }
-  }
-
-  // =============== ПАСПОРТ В РАЗДЕЛЕ ===============  
-  function renderPassport(level, questsDone, nextLevel, nextGiftName) {
-    const lvl = Number(level) || 0;
-    const done = Number(questsDone) || lvl;
-
-    qs('#passport-level').textContent = lvl || '—';
-    qs('#passport-quests-done').textContent = done || '—';
-
-    const nextTextEl = qs('#passport-next-gift');
-    if (nextLevel) {
-      let txt = `До следующего подарка — уровень ${nextLevel}.`;
-      if (nextGiftName) {
-        txt += ` Подарок: «${nextGiftName}».`;
-      }
-      nextTextEl.textContent = txt;
-    } else {
-      nextTextEl.textContent = 'Вы на максимальном уровне программы или данные ещё обновляются.';
-    }
-
-    const grid = qs('#passport-grid');
-    grid.innerHTML = '';
-    for (let i = 1; i <= 12; i++) {
-      const div = document.createElement('div');
-      div.className = 'passport-step' + (lvl >= i ? ' active' : '');
-      div.innerHTML = `#${i}<span>${i === 3 || i === 6 || i === 9 || i === 12 ? '🎁 подарок' : 'квест'}</span>`;
-      grid.appendChild(div);
-    }
-  }
-
-  // =============== ПОДАРКИ ===============  
-  function renderGifts(gifts) {
-    const container = qs('#gifts-container');
-    container.innerHTML = '';
-
-    if (!gifts || gifts.length === 0) {
-      container.innerHTML = '<div class="empty">У вас пока нет активных подарков. Но вы уже на пути к ним! 🎁</div>';
-      return;
-    }
-
-    const list = document.createElement('div');
-    list.className = 'gift-list';
-
-    gifts.forEach(g => {
-      const card = document.createElement('div');
-      card.className = 'gift-card';
-
-      const imgWrap = document.createElement('div');
-      imgWrap.className = 'gift-img';
-      if (g.image) {
-        const img = document.createElement('img');
-        img.src = g.image;
-        img.alt = g.title || 'Подарок';
-        imgWrap.appendChild(img);
-      }
-
-      const body = document.createElement('div');
-      body.className = 'gift-body';
-
-      const title = document.createElement('div');
-      title.className = 'gift-title';
-      title.textContent = g.title || 'Подарок';
-
-      const desc = document.createElement('div');
-      desc.className = 'gift-desc';
-      desc.textContent = g.description || '';
-
-      const meta = document.createElement('div');
-      meta.className = 'gift-meta';
-      if (g.expires) {
-        meta.textContent = `⏰ Действует до: ${g.expires}`;
-      }
-
-      body.appendChild(title);
-      if (g.description) body.appendChild(desc);
-      if (g.expires) body.appendChild(meta);
-
-      card.appendChild(imgWrap);
-      card.appendChild(body);
-      list.appendChild(card);
-    });
-
-    container.appendChild(list);
-  }
-function createQuestCard(q, upcoming) {
-  // Если лог уже не нужен — можно удалить совсем
-  // console.log("QUEST DEBUG:", {
-  //   title: q.title,
-  //   timeStr: q.time || q.datetime || q.book_time || q.start,
-  //   ts: q._ts,
-  //   upcoming: upcoming,
-  //   foto: q.foto,
-  //   image: q.image
-  // });
-
-  const card = document.createElement('div');
-  card.className = 'card';
-
-  const imgUrl   = q.image || '';
-  const fotoLink = (q.foto || '').trim(); // ссылка на готовую галерею (если есть)
-  const timeStr  = q.time || q.datetime || q.book_time || q.start || '';
-  const title    = q.title || 'Квест';
-  const address  = q.address || '';
-  const price    = q.price ? q.price + ' ₽' : '';
-  const duration = q.duration || '';
-  const animator = q.animator || '';
-
-  // возможные id брони/квеста (подставь свои поля, если называются иначе)
-  const bookingId = q.booking_id || q.order_id || q.id || null;
-
-  // Картинка квеста (превью)
-  if (imgUrl) {
-    const imgBlock = document.createElement('div');
-    imgBlock.className = 'quest-card-image';
-    const img = document.createElement('img');
-    img.src = imgUrl;
-    img.alt = title;
-    imgBlock.appendChild(img);
-    card.appendChild(imgBlock);
-  }
-
-  // Заголовок
-  const header = document.createElement('div');
-  header.className = 'card-header';
-  const titleEl = document.createElement('div');
-  titleEl.className = 'card-title';
-  titleEl.textContent = title;
-  const badge = document.createElement('div');
-  badge.className = 'card-badge';
-  badge.textContent = upcoming ? 'Скоро' : 'Уже сыграли';
-  header.appendChild(titleEl);
-  header.appendChild(badge);
-  card.appendChild(header);
-
-  // Дата / адрес
-  if (timeStr || address) {
-    const row = document.createElement('div');
-    row.className = 'card-row';
-    if (timeStr) {
-      const pill = document.createElement('div');
-      pill.className = 'card-pill';
-      pill.textContent = '📅 ' + formatDateTime(timeStr);
-      row.appendChild(pill);
-    }
-    if (address) {
-      const pill = document.createElement('div');
-      pill.className = 'card-pill';
-      pill.textContent = '📍 ' + address;
-      row.appendChild(pill);
-    }
-    card.appendChild(row);
-  }
-
-  // Цена / длительность / аниматор
-  if (price || duration || animator) {
-    const row2 = document.createElement('div');
-    row2.className = 'card-row';
-    if (price) {
-      const pill = document.createElement('div');
-      pill.className = 'card-pill';
-      pill.textContent = '💰 ' + price;
-      row2.appendChild(pill);
-    }
-    if (duration) {
-      const pill = document.createElement('div');
-      pill.className = 'card-pill';
-      pill.textContent = '⏱ ' + duration;
-      row2.appendChild(pill);
-    }
-    if (animator) {
-      const pill = document.createElement('div');
-      pill.className = 'card-pill';
-      pill.textContent = '🧑‍🎤 ' + animator;
-      row2.appendChild(pill);
-    }
-    card.appendChild(row2);
-  }
-
-  // ===== БЛОК КНОПОК =====
-  const actions = document.createElement('div');
-  actions.className = 'card-actions';
-
-  // 1. Если есть готовая ссылка на фото — показываем кнопку "Посмотреть фото"
-  if (fotoLink) {
-    const btnFoto = document.createElement('button');
-    btnFoto.className = 'btn btn-outline';
-    btnFoto.type = 'button';
-    btnFoto.textContent = '📸 Посмотреть фото';
-    btnFoto.addEventListener('click', () => {
-      window.open(fotoLink, '_blank');
-    });
-    actions.appendChild(btnFoto);
-  }
-
-  // 2. Если НЕТ ссылки на готовые фото И квест уже прошёл — показываем "Запросить фото"
-  if (!fotoLink && !upcoming) {
-    const btnRequest = document.createElement('button');
-    btnRequest.className = 'btn btn-outline';
-    btnRequest.type = 'button';
-    btnRequest.textContent = '📩 Запросить фото';
-
-    btnRequest.addEventListener('click', () => {
-      const payload = {
-        action: 'request_photos',
-        timestamp: Date.now(),
-        quest_title: title,
-        quest_time: timeStr || null,
-        quest_address: address || null,
-        phone: window.__pandoroomPhone || null,
-        booking_id: bookingId,
-      };
-
-      // Деактивируем кнопку, чтобы не спамили запросами
-      btnRequest.disabled = true;
-      btnRequest.textContent = '✅ Запрос отправлен';
-
-      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.sendData) {
-        try {
-          window.Telegram.WebApp.sendData(JSON.stringify(payload));
-        } catch (e) {
-          console.error('sendData error', e);
-          // В случае ошибки можно вернуть кнопку в исходное состояние
-          btnRequest.disabled = false;
-          btnRequest.textContent = '📩 Запросить фото';
-          alert('Не удалось отправить запрос. Попробуйте ещё раз.');
-        }
-      } else {
-        console.warn('Telegram WebApp API недоступен, payload:', payload);
-        alert('Запрос на фото отправлен менеджеру.');
-      }
-    });
-
-    actions.appendChild(btnRequest);
-  }
-
-  // Добавляем блок с кнопками, только если там что-то есть
-  if (actions.childElementCount > 0) {
-    card.appendChild(actions);
-  }
-
-  return card;
-}
-// Рендер всех квестов с разделением на предстоящие / прошедшие
-function renderQuests(quests) {
-  const container = qs('#quests-container');
-  container.innerHTML = '';
-
-  if (!Array.isArray(quests) || quests.length === 0) {
-    container.innerHTML = '<div class="empty">Квесты по вашему номеру пока не найдены.</div>';
-    return;
-  }
-
-  const { upcoming, past } = splitQuestsByTime(quests);
-
-  // Если вообще ничего не смогли распарсить
-  if (!upcoming.length && !past.length) {
-    container.innerHTML = '<div class="empty">Квесты по вашему номеру пока не найдены.</div>';
-    return;
-  }
-
-  // Предстоящие
-  if (upcoming.length) {
-    const title = document.createElement('div');
-    title.className = 'quests-group-title';
-    title.textContent = 'Предстоящие квесты';
-    container.appendChild(title);
-
-    upcoming.forEach(q => {
-      const card = createQuestCard(q, true);
-      container.appendChild(card);
-    });
-  }
-
-  // Прошедшие
-  if (past.length) {
-    const title = document.createElement('div');
-    title.className = 'quests-group-title';
-    title.textContent = 'Прошедшие квесты';
-    container.appendChild(title);
-
-    // Можно ограничить, например, 10 последними
-    past.slice(0, 10).forEach(q => {
-      const card = createQuestCard(q, false);
-      container.appendChild(card);
-    });
-  }
-}
-
-
-  // =============== ПРАЗДНИК ===============  
-  function renderPartyFromParams(params) {
-    const container = qs('#party-container');
-
-    const date   = params.event_date;
-    const from   = params.event_from;
-    const to     = params.event_to;
-    const hall   = params.event_hall;
-    const guests = params.event_guests;
-    const name   = params.event_name;
-    const age    = params.event_age;
-
-    if (!date && !from && !hall) {
-      container.innerHTML = '<div class="empty">У вас пока нет забронированных праздников.</div>';
-      return false;
-    }
-
-    const card = document.createElement('div');
-    card.className = 'card';
-
-    const header = document.createElement('div');
-    header.className = 'card-header';
-    header.innerHTML = '<div class="card-title">Ближайший праздник</div><div class="card-badge">🎉 День рождения</div>';
-    card.appendChild(header);
-
-    const row = document.createElement('div');
-    row.className = 'card-row';
-
-    if (date) {
-      const pill = document.createElement('div');
-      pill.className = 'card-pill';
-      pill.textContent = '📅 ' + date;
-      row.appendChild(pill);
-    }
-    if (from || to) {
-      const pill = document.createElement('div');
-      pill.className = 'card-pill';
-      pill.textContent = '⏰ ' + (from || '') + (to ? '–' + to : '');
-      row.appendChild(pill);
-    }
-    if (hall) {
-      const pill = document.createElement('div');
-      pill.className = 'card-pill';
-      pill.textContent = '📍 ' + hall;
-      row.appendChild(pill);
-    }
-
-    card.appendChild(row);
-
-    if (guests || name || age) {
-      const row2 = document.createElement('div');
-      row2.className = 'card-row';
-
-      if (guests) {
-        const pill = document.createElement('div');
-        pill.className = 'card-pill';
-        pill.textContent = '👨‍👩‍👧‍👦 Гостей: ' + guests;
-        row2.appendChild(pill);
-      }
-      if (name) {
-        const pill = document.createElement('div');
-        pill.className = 'card-pill';
-        pill.textContent = '🎂 Именинник: ' + name + (age ? ` (${age} лет)` : '');
-        row2.appendChild(pill);
-      }
-
-      card.appendChild(row2);
-    }
-
-    // ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПРАЗДНИКЕ
-    const info = document.createElement('div');
-    info.className = 'card-text';
-    info.textContent = 'За несколько дней до праздника менеджер напомнит вам о брони. ' +
-      'Уже сейчас вы можете внести предоплату, посмотреть праздничное меню и получить красивый пригласительный для гостей.';
-    card.appendChild(info);
-
-    // КНОПКИ: ПРЕДОПЛАТА, МЕНЮ, ПРИГЛАСИТЕЛЬ
-    const actions = document.createElement('div');
-    actions.className = 'card-actions';
-
-    // Внести предоплату
-    const btnPrepay = document.createElement('button');
-    btnPrepay.className = 'btn btn-primary';
-    btnPrepay.type = 'button';
-    btnPrepay.textContent = 'Внести предоплату';
-    btnPrepay.addEventListener('click', () => {
-      if (tg) {
-	  console.log('SENDING SENDDATA', {
-  action: 'prepay',
-  source: 'party_card',
-  event_date: date || null,
-  event_from: from || null,
-  event_to: to || null,
-  event_hall: hall || null,
-  phone: window.__pandoroomPhone || null,
-  timestamp: Date.now()
-});
-	  
-        tg.sendData(JSON.stringify({
-          action: 'prepay',
-          source: 'party_card',
-          event_date: date || null,
-          event_from: from || null,
-          event_to: to || null,
-          event_hall: hall || null,
-          phone: window.__pandoroomPhone || null,
-          timestamp: Date.now()
-        }));
-        tg.showAlert('Мы передали запрос на предоплату менеджеру. Ссылку на оплату вы получите в Telegram ❤️');
-      } else {
-        alert('Запрос на предоплату отправлен менеджеру.');
-      }
-    });
-
-    // Скачать меню
-    const btnMenu = document.createElement('button');
-    btnMenu.className = 'btn btn-outline';
-    btnMenu.type = 'button';
-    btnMenu.textContent = 'Скачать меню';
-    btnMenu.addEventListener('click', () => {
-      // ЗДЕСЬ МОЖНО ПОМЕНЯТЬ ССЫЛКУ НА СВОЙ PDF/СТРАНИЦУ МЕНЮ
-      window.open('https://pandoroom.org/prazdpand.pdf', '_blank');
-    });
-
-    // Пригласительный
-    const btnInvite = document.createElement('button');
-    btnInvite.className = 'btn btn-outline';
-    btnInvite.type = 'button';
-    btnInvite.textContent = 'Пригласительный';
-    btnInvite.addEventListener('click', () => {
-      if (tg) {
-        tg.sendData(JSON.stringify({
-          action: 'invite_request',
-          source: 'party_card',
-          event_date: date || null,
-          event_from: from || null,
-          event_hall: hall || null,
-          name: name || null,
-          age: age || null,
-          phone: window.__pandoroomPhone || null,
-          timestamp: Date.now()
-        }));
-        tg.showAlert('Запрос на пригласительный отправлен. Менеджер подготовит и вышлет его вам 👑');
-      } else {
-        alert('Запрос на пригласительный отправлен менеджеру.');
-      }
-    });
-
-    actions.appendChild(btnPrepay);
-    actions.appendChild(btnMenu);
-    actions.appendChild(btnInvite);
-    card.appendChild(actions);
-
-    container.innerHTML = '';
-    container.appendChild(card);
-    return true;
-  }
-
-  // =============== ЗАГРУЗКА ВСЕГО (бонусы/квесты/праздник) ===============  
-  async function loadAll(phone, params) {
-    window.__pandoroomPhone = phone || '';
-
-    const userName = params.name || '';
-	window.__pandoroomUserName = userName;
-
-    if (userName) {
-      qs('#user-name').textContent = userName;
-      qs('#avatar-initials').textContent = userName.trim()[0]?.toUpperCase() || 'P';
-    } else {
-      qs('#avatar-initials').textContent = 'P';
-    }
-
-    if (phone) {
-      qs('#user-phone').textContent = '+' + phone;
-    } else {
-      qs('#user-phone').textContent = 'Телефон не указан';
-    }
-
-    // 1) Паспорт + подарки + бонусы
-    if (phone) {
-      try {
-        const res = await fetch('https://pandoroom.tech/telegramm/gifts_proxy.php?phone=' + encodeURIComponent(phone));
-        const data = await res.json();
-
-        const bonus = data.bonus ?? null;
-        const level = data.passport_level ?? 0;
-        const questsDone = data.quests_done ?? level;
-        const nextLevel = data.next_level_quests ?? null;
-        const nextGiftName = data.next_gift_name ?? null;
-        const gifts = data.gifts ?? [];
-
-        if (bonus !== null) {
-          qs('#user-bonus').innerHTML = 'Бонусы: <strong>' + bonus + ' ₽</strong>';
-        } else {
-          qs('#user-bonus').innerHTML = 'Бонусы: <strong>—</strong>';
-        }
-
-        renderMiniPassport(level);
-        renderPassport(level, questsDone, nextLevel, nextGiftName);
-        renderGifts(gifts);
-        updateOverview({
-          bonus: bonus,
-          questsDone: questsDone,
-          gifts: gifts.length,
-          level: level,
-        });
-
-      } catch (e) {
-        qs('#user-bonus').innerHTML = 'Бонусы: <strong>—</strong>';
-        renderMiniPassport(0);
-        qs('#gifts-container').innerHTML = '<div class="empty">Не удалось загрузить подарки.</div>';
-      }
-    } else {
-      renderMiniPassport(0);
-      qs('#gifts-container').innerHTML = 'Чтобы увидеть подарки, откройте личный кабинет через бота, отправив номер телефона.';
-    }
-
-    // 2) Квесты
-    if (phone) {
-      try {
-        const res = await fetch('https://pandoroom.tech/telegramm/quests_proxy.php?phone=' + encodeURIComponent(phone));
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          renderQuests(data);
-
-          const parts = splitQuestsByTime(data);
-          updateOverview({
-            upcoming: parts.upcoming.length,
-            past: parts.past.length,
-          });
-        } else if (data && data.error) {
-          qs('#quests-container').innerHTML = '<div class="empty">Ошибка: ' + data.error + '</div>';
-        } else {
-          qs('#quests-container').innerHTML = '<div class="empty">Квесты по вашему номеру пока не найдены.</div>';
-        }
-      } catch (e) {
-        qs('#quests-container').innerHTML = '<div class="empty">Не удалось загрузить квесты.</div>';
-      }
-    } else {
-      qs('#quests-container').innerHTML = '<div class="empty">Чтобы увидеть квесты, откройте личный кабинет через бота, отправив номер телефона.</div>';
-    }
-
-    // 3) Праздник
-    try {
-      const renderedFromParams = renderPartyFromParams(params);
-
-      if (!renderedFromParams && phone) {
-        const res = await fetch('https://pandoroom.tech/telegramm/party_proxy.php?phone=' + encodeURIComponent(phone));
-        const data = await res.json();
-
-        if (!data || !data.datas) {
-          qs('#party-container').innerHTML = '<div class="empty">Праздников по вашему номеру пока не найдено.</div>';
-        } else {
-          renderPartyFromParams({
-            event_date: data.datas,
-            event_from: data.start,
-            event_to:   data.stop,
-            event_hall: ((data.zal || '') + ' ' + (data.stol || '')).trim(),
-            event_guests: data.kol,
-            event_name: data.imen,
-            event_age: data.vozr
-          });
-        }
-      }
-    } catch (e) {
-      qs('#party-container').innerHTML = '<div class="empty">Не удалось загрузить данные о празднике.</div>';
-    }
-  }
-
-  // =============== ВКЛАДКИ ===============  
-  function initTabs() {
-    const tabs = qsa('.tab-btn');
-    tabs.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const target = btn.getAttribute('data-tab');
-        tabs.forEach(b => b.classList.toggle('active', b === btn));
-        qsa('section').forEach(sec => {
-          sec.classList.toggle('active', sec.id === 'tab-' + target);
-        });
-
-
-      });
-    });
-  }
-
-  // ======== ОТКРЫТЬ МАСТЕР БРОНИРОВАНИЯ ========  
-function openBookingWizard() {
-  const btnParty = document.querySelector('.tab-btn[data-tab="party"]');
-  if (btnParty) {
-    btnParty.click();
-  }
-
-  const master = document.getElementById('booking-master');
-  if (master) {
-    master.style.display = 'block'; // 👉 показать мастер
-    master.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    master.classList.add('bk-highlight');
-    setTimeout(() => {
-      master.classList.remove('bk-highlight');
-    }, 1200);
-  }
-
-
-}
-
-
-  // =============== КНОПКИ ДЕЙСТВИЙ + МОДАЛКА ===============  
-  function initActions() {
-    const btnQuest = qs('#btn-want-quest');
-    const btnEvent = qs('#btn-add-event');
-
-if (btnQuest) {
-  btnQuest.addEventListener('click', () => {
-    const phoneRaw = window.__pandoroomPhone || '';
-    const phone = phoneRaw.replace(/\D/g, '');
-    const name  = window.__pandoroomUserName || '';
-
-    if (tg) {
-      tg.sendData(JSON.stringify({
-        action: 'want_quest',
-        source: 'lk_button',
-        phone: phone || null,
-        name: name || null,
-        timestamp: Date.now()
-      }));
-    }
-
-    alert('Запрос на квест отправлен менеджеру!');
-  });
-}
-
-
-    if (btnEvent) {
-      btnEvent.addEventListener('click', () => {
-        // Открываем мастер бронирования
-        openBookingWizard();
-
-    
-      });
-    }
-
-    // Модалка (если вдруг решишь ею пользоваться)
-    const modalClose  = qs('#event-modal .event-modal-close');
-    const modalCancel = qs('#event-cancel');
-    const modalBackdrop = qs('#event-modal .event-modal-backdrop');
-
-    [modalClose, modalCancel, modalBackdrop].forEach(el => {
-      if (el) {
-        el.addEventListener('click', () => {
-          closeEventModal();
-        });
-      }
-    });
-
-    initEventToggleGroup(qs('#ev-format-group'));
-    initEventToggleGroup(qs('#ev-hall-group'));
-    initEventToggleGroup(qs('#ev-cake-group'));
-    initEventToggleGroup(qs('#ev-show-group'));
-    initEventToggleGroup(qs('#ev-decor-group'));
-
-    const submitBtn = qs('#event-submit');
-    if (submitBtn) {
-      submitBtn.addEventListener('click', () => {
-        const childName = qs('#ev-child-name')?.value.trim() || '';
-        const childAge  = qs('#ev-child-age')?.value.trim() || '';
-        const date      = qs('#ev-date')?.value || '';
-        const time      = qs('#ev-time')?.value || '';
-        const kids      = qs('#ev-kids')?.value.trim() || '';
-        const adults    = qs('#ev-adults')?.value.trim() || '';
-        const comment   = qs('#ev-comment')?.value.trim() || '';
-
-        const format    = getActiveToggleValue('#ev-format-group', 'quest_plus_party');
-        const hall      = getActiveToggleValue('#ev-hall-group', 'kids');
-        const cake      = getActiveToggleValue('#ev-cake-group', 'need');
-        const show      = getActiveToggleValue('#ev-show-group', 'need');
-        const decor     = getActiveToggleValue('#ev-decor-group', 'need');
-
-        const statusEl  = qs('#event-status');
-
-        if (!date || !time || !kids) {
-          if (statusEl) {
-            statusEl.textContent = 'Пожалуйста, заполните дату, время и количество детей.';
-          }
-          return;
-        }
-
-        const payload = {
-          phone: window.__pandoroomPhone || null,
-          child_name: childName,
-          child_age: childAge,
-          event_date: date,
-          event_time: time,
-          kids: kids,
-          adults: adults,
-          format: format,
-          hall: hall,
-          cake: cake,
-          show: show,
-          decor: decor,
-          comment: comment,
-        };
-
-        if (tg) {
-          tg.sendData(JSON.stringify({
-            action: 'create_event_booking',
-            timestamp: Date.now(),
-            data: payload
-          }));
-        }
-
-        if (statusEl) {
-          statusEl.textContent = 'Заявка отправлена! Менеджер свяжется с вами.';
-        }
-
-        setTimeout(() => {
-          closeEventModal();
-        }, 1200);
-      });
-    }
-  }
-
-  // ==================== BOOKING MASTER ====================  
-  const API_BOT_URL = 'https://pandoroom.tech/telegramm/bot.php';
-
-  const bookingState = {
-  name: '',
-  age: null,
-  date: '',
-  time: '',
-  kids: 0,
-  adults: 0,
-  hall: null,
-  table: null,
-  quests: [],     
-  menuItems: []
-};
-
-
-  function bookingRecalcTotal() {
-  let sum = 0;
-
-  if (Array.isArray(bookingState.quests)) {
-    bookingState.quests.forEach(q => {
-      if (q.price) {
-        sum += Number(q.price) || 0;
-      }
-    });
-  }
-
-  bookingState.menuItems.forEach(item => {
-    sum += (Number(item.price) || 0) * (Number(item.qty) || 0);
-  });
-
-  const totalEl = qs('#bm-summary-total');
-  if (totalEl) totalEl.textContent = sum;
-}
-
-
-  function bookingRenderSummary() {
-    const el = qs('#bm-summary-list');
-    if (!el) return;
-
-    const parts = [];
-
-    if (bookingState.date || bookingState.time) {
-      parts.push(`📅 ${bookingState.date || ''} ${bookingState.time || ''}`.trim());
-    }
-    if (bookingState.name || bookingState.age) {
-      parts.push(`🎂 ${bookingState.name || 'Именинник'}${bookingState.age ? ' ('+bookingState.age+' лет)' : ''}`);
-    }
-    const guests = (Number(bookingState.kids)||0) + (Number(bookingState.adults)||0);
-    if (guests) {
-      parts.push(`👨‍👩‍👧‍👦 Гостей: ${guests} (дети: ${bookingState.kids || 0}, взрослые: ${bookingState.adults || 0})`);
-    }
-    if (bookingState.table) {
-  let hallTitle = '';
-  if (bookingState.table.zal === 1) hallTitle = 'Kids';
-  else if (bookingState.table.zal === 2) hallTitle = 'Lounge';
-  else if (bookingState.table.zal === 3) hallTitle = 'Cafe';
-
-  if (hallTitle) {
-    parts.push(`📍 Зал: ${hallTitle}`);
-  }
-
-  parts.push(`🪑 Стол: ${bookingState.table.label || bookingState.table.name || bookingState.table.id}`);
-}
-
-   
-  if (bookingState.quests && bookingState.quests.length) {
-  const questLines = bookingState.quests.map(q =>
-    `${q.title || 'Квест'} в ${q.time || ''}`
-  );
-  parts.push('🧩 Квесты:<br>' + questLines.join('<br>'));
-}
-
-
-   const menuTexts = bookingState.menuItems
-  .filter(i => i.qty > 0)
-  .map(i => {
-    let emoji = '🎈';
-    if (i.type === 'tort')      emoji = '🍰';
-    else if (i.type === 'show') emoji = '🎭';
-    else if (i.type === 'drink') emoji = '🥤';
-    else if (i.type === 'food')  emoji = '🍽️';
-    return `${emoji} ${i.name} × ${i.qty}`;
-  });
-
-
-    if (menuTexts.length) parts.push(menuTexts.join(' • '));
-
-    el.innerHTML = parts.length ? parts.join('<br>') : '<span class="small">Вы ещё ничего не выбрали.</span>';
-
-    bookingRecalcTotal();
-  }
-
-  function bookingShowStep(step) {
-    ['bm-step-1','bm-step-2','bm-step-3','bm-step-4'].forEach((id, index) => {
-      const el = qs('#'+id);
-      if (!el) return;
-      el.style.display = (index === (step-1)) ? 'block' : 'none';
-    });
-  }
-
-function bookingInitStep1() {
-  const nextBtn = qs('#bm-next-to-tables');
-  if (!nextBtn) return;
-
-  nextBtn.addEventListener('click', async () => {
-    bookingState.name   = qs('#bm-name').value.trim();
-    bookingState.age    = qs('#bm-age').value.trim();
-    bookingState.date   = qs('#bm-date').value;
-    bookingState.time   = qs('#bm-time').value;
-    bookingState.kids   = Number(qs('#bm-kids').value || 0);
-    bookingState.adults = Number(qs('#bm-adults').value || 0);
-
-    let ok = true;
-    ['bm-date','bm-time','bm-age','bm-kids','bm-adults'].forEach(id => {
-      const input = qs('#'+id);
-      if (!input) return;
-      input.style.borderColor = '#ddd';
-    });
-
-    function markError(id) {
-      const input = qs('#'+id);
-      if (input) input.style.borderColor = 'red';
-      ok = false;
-    }
-
-    if (!bookingState.date) markError('bm-date');
-    if (!bookingState.time) markError('bm-time');
-    if (!bookingState.age)  markError('bm-age');
-    if (!bookingState.kids && !bookingState.adults) {
-      markError('bm-kids');
-      markError('bm-adults');
-    }
-
-    if (!ok) {
-      alert('Заполните дату, время, возраст и количество гостей.');
-      return;
-    }
-
-    bookingRenderSummary();
-    bookingShowStep(2);
-    await bookingLoadTables();
-  });
-}
-
-
-  async function bookingLoadTables() {
-  const msgEl = qs('#bm-tables-message');
-  const listEl = qs('#bm-tables-list');
-  const btnNext = qs('#bm-next-to-quest');
-  if (!msgEl || !listEl || !btnNext) return;
-
-  msgEl.textContent = 'Загружаем доступные столы…';
-  listEl.innerHTML = '';
-  //btnNext.disabled = true;
-  bookingState.table = null;
-
-  const guests = (bookingState.kids || 0) + (bookingState.adults || 0);
-
-  try {
-    const url = `${API_BOT_URL}?action=stols`
-      + `&date=${encodeURIComponent(bookingState.date)}`
-      + `&time=${encodeURIComponent(bookingState.time)}`
-      + `&people=${encodeURIComponent(guests)}`
-      + `&age=${encodeURIComponent(bookingState.age || '')}`;
-
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-
-    const data = await res.json();
-    const rawStols     = data.stols      || [];
-    const nextTime     = data.next_time  || null;
-    const rawNextStols = data.next_stols || [];
-
-    // возраст именинника
-    const ageNum = Number(bookingState.age) || 0;
-    const isOlder = ageNum >= 9;
-
-    // если 9+ → только Lounge и Cafe (zal = 2 или 3)
-    // если <9 → все
-    const stols = rawStols.filter(s => {
-      if (!isOlder) return true;
-      return s.zal === 2 || s.zal === 3;
-    });
-
-    const nextStols = rawNextStols.filter(s => {
-      if (!isOlder) return true;
-      return s.zal === 2 || s.zal === 3;
-    });
-
- function renderStols(arr, labelPrefix) {
-  console.log('STOLS RAW ARRAY:', arr); // 👈 разовый лог всего массива
-
-  arr.forEach(s => {
-    console.log('STOL ITEM:', s); // 👈 видно конкретно, что приходит в s.zal
-
-    const div = document.createElement('div');
-    div.className = 'card';
-    div.style.padding = '8px';
-
-    const title = document.createElement('div');
-    title.className = 'card-title';
-
-    // аккуратный маппинг зала
-    let hallName;
-    const zalVal = typeof s.zal === 'string' ? s.zal.trim().toLowerCase() : s.zal;
-
-    if (zalVal === 1 || zalVal === '1') {
-      hallName = 'Kids';
-    } else if (zalVal === 2 || zalVal === '2') {
-      hallName = 'Lounge';
-    } else if (zalVal === 3 || zalVal === '3') {
-      hallName = 'Cafe';
-    } else {
-      // если приходит что-то другое — покажем как есть, чтобы заметить
-      hallName = String(s.zal ?? '???');
-    }
-
-    const label = `${labelPrefix} Зал ${hallName}, стол ${s.stol}`;
-    title.textContent = label;
-
-    const meta = document.createElement('div');
-    meta.className = 'small';
-    meta.style.margin = '4px 0';
-    meta.textContent = s.atrib ? s.atrib.replace(/<[^>]+>/g, '') : '';
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-outline btn-full';
-    btn.textContent = 'Выбрать';
-    btn.addEventListener('click', () => {
-      bookingState.table = {
-        id: s.id,
-        zal: s.zal,
-        stol: s.stol,
-        vm: s.vm,
-        label
-      };
-      Array.from(listEl.children).forEach(child => {
-        const b = child.querySelector('button');
-        if (b) {
-          b.textContent = 'Выбрать';
-          b.classList.remove('btn-primary');
-          b.classList.add('btn-outline');
-        }
-      });
-      btn.textContent = 'Выбрано';
-      btn.classList.remove('btn-outline');
-      btn.classList.add('btn-primary');
-      btnNext.disabled = false;
-      bookingRenderSummary();
-    });
-
-    div.appendChild(title);
-    if (s.atrib) div.appendChild(meta);
-    div.appendChild(btn);
-    listEl.appendChild(div);
-  });
-}
-
-
-    listEl.innerHTML = '';
-
-    if (stols.length) {
-      msgEl.textContent = data.message || 'Выберите стол:';
-      renderStols(stols, '');
-    } else if (nextStols.length && nextTime) {
-      msgEl.textContent = (data.message || 'На это время столов нет.') + ` Ближайшее свободное время: ${nextTime}`;
-      renderStols(nextStols, `(${nextTime})`);
-    } else {
-      msgEl.textContent = data.message || 'Свободных столов не найдено. Попробуйте выбрать другую дату/время.';
-    }
-
-  } catch (e) {
-    console.error(e);
-    msgEl.textContent = 'Ошибка загрузки столов. Попробуйте позже.';
-  }
-}
-
-
-  async function bookingLoadQuestSlots() {
-  const msgEl = qs('#bm-quests-message');
-  const listEl = qs('#bm-quests-list');
-  const btnNext = qs('#bm-next-to-menu');
-  if (!msgEl || !listEl || !btnNext) return;
-
-  msgEl.textContent = 'Загружаем свободные слоты…';
-  listEl.innerHTML = '';
-
-  // ⭐ сбрасываем выбор квестов
-  bookingState.quests = [];
-  //btnNext.disabled = true;
-
-  const guests = (bookingState.kids || 0) + (bookingState.adults || 0);
-
-  try {
-    const url = `${API_BOT_URL}?action=quest_slots`
-      + `&date=${encodeURIComponent(bookingState.date)}`
-      + `&time=${encodeURIComponent(bookingState.time || '')}`
-      + `&age=${encodeURIComponent(bookingState.age || '')}`
-      + `&people=${encodeURIComponent(guests)}`;
-
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP '+res.status);
-    const slots = await res.json();
-
-    if (!Array.isArray(slots) || !slots.length) {
-      msgEl.textContent = 'Свободных квестов на выбранное время не найдено.';
-      return;
-    }
-
-    msgEl.textContent = 'Выберите один или несколько квестов:';
-
-    slots.forEach(s => {
-      const div = document.createElement('div');
-      div.className = 'card';
-      div.style.padding = '8px';
-
-      // 🖼 картинка квеста, если есть
-      if (s.image) {
-        const imgWrap = document.createElement('div');
-        imgWrap.className = 'quest-card-image';
-        const img = document.createElement('img');
-        img.src = s.image;
-        img.alt = s.title || 'Квест';
-        imgWrap.appendChild(img);
-        div.appendChild(imgWrap);
-      }
-
-      const title = document.createElement('div');
-      title.className = 'card-title';
-      title.textContent = s.title || 'Квест';
-
-      const row = document.createElement('div');
-      row.className = 'card-row';
-
-      if (s.time) {
-        const p = document.createElement('div');
-        p.className = 'card-pill';
-        p.textContent = '🕒 ' + s.time;
-        row.appendChild(p);
-      }
-      if (s.price) {
-        const p = document.createElement('div');
-        p.className = 'card-pill';
-        p.textContent = '💰 ' + s.price + ' ₽';
-        row.appendChild(p);
-      }
-      if (s.duration) {
-        const p = document.createElement('div');
-        p.className = 'card-pill';
-        p.textContent = '⏱ ' + s.duration;
-        row.appendChild(p);
-      }
-      if (s.address) {
-        const p = document.createElement('div');
-        p.className = 'card-pill';
-        p.textContent = '📍 ' + s.address;
-        row.appendChild(p);
-      }
-      if (s.age_limit) {
-        const p = document.createElement('div');
-        p.className = 'card-pill';
-        p.textContent = '👶 ' + s.age_limit;
-        row.appendChild(p);
-      }
-
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'btn btn-outline btn-full';
-      btn.textContent = 'Выбрать';
-
-      // 🔁 идентификатор слота (квест + время)
-      const slotKey = s.id + '_' + (s.time || '');
-
-      function isSelected() {
-        return bookingState.quests.some(q => (q._key === slotKey));
-      }
-
-      function toggleSlot() {
-        const idx = bookingState.quests.findIndex(q => q._key === slotKey);
-        if (idx === -1) {
-          // добавить
-          bookingState.quests.push({
-            _key: slotKey,           // внутренняя штука для уникальности
-            id: s.id,
-            time: s.time,
-            title: s.title,
-            price: s.price,
-            duration: s.duration
-          });
-        } else {
-          // убрать
-          bookingState.quests.splice(idx, 1);
-        }
-
-        // UI кнопки
-        if (isSelected()) {
-          btn.textContent = 'Выбрано';
-          btn.classList.remove('btn-outline');
-          btn.classList.add('btn-primary');
-        } else {
-          btn.textContent = 'Выбрать';
-          btn.classList.remove('btn-primary');
-          btn.classList.add('btn-outline');
-        }
-
-        // Вперёд можно только если есть хотя бы один квест
-        btnNext.disabled = bookingState.quests.length === 0;
-
-        bookingRenderSummary();
-      }
-
-      btn.addEventListener('click', toggleSlot);
-
-      div.appendChild(title);
-      div.appendChild(row);
-      div.appendChild(btn);
-      listEl.appendChild(div);
-    });
-
-  } catch (e) {
-    console.error(e);
-    msgEl.textContent = 'Ошибка загрузки слотов квестов.';
-  }
-}
-
-
-let menuData = {
-  torts:   [],
-  show:    [],
-  decor:   [],
-  snacks:  [],
-  salads:  [],
-  hot:     [],
-  garnish: [],
-  fries:   [],
-  pizza:   [],
-  sweets:  [],
-  drinks:  []
-};
-
-
- async function bookingLoadMenu() {
-  try {
-    const res = await fetch(`${API_BOT_URL}?action=menu`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-
-    menuData.torts   = data.torts   || [];
-    menuData.show    = data.show    || [];
-    menuData.decor   = data.decor   || [];
-    menuData.snacks  = data.snacks  || [];
-    menuData.salads  = data.salads  || [];
-    menuData.hot     = data.hot     || [];
-    menuData.garnish = data.garnish || [];
-    menuData.fries   = data.fries   || [];
-    menuData.pizza   = data.pizza   || [];
-    menuData.sweets  = data.sweets  || [];
-    menuData.drinks  = data.drinks  || [];
-
-    // Первый рендер
-    bookingRenderMenuCategory('torts');
-    bookingRenderMenuCategory('show');
-    bookingRenderMenuCategory('decor');
-    bookingRenderMenuCategory('snacks');
-    bookingRenderMenuCategory('salads');
-    bookingRenderMenuCategory('hot');
-    bookingRenderMenuCategory('garnish');
-    bookingRenderMenuCategory('fries');
-    bookingRenderMenuCategory('pizza');
-    bookingRenderMenuCategory('sweets');
-    bookingRenderMenuCategory('drinks');
-
-  } catch (e) {
-    console.error(e);
-    qs('#bm-menu-torts').innerHTML = '<div class="small">Не удалось загрузить меню.</div>';
-    qs('#bm-menu-show').innerHTML  = '';
-    qs('#bm-menu-decor').innerHTML = '';
-  }
-}
-
-function bookingRenderMenuCategory(type) {
-  const containerId = '#bm-menu-' + type;
-  const container = qs(containerId);
-  if (!container) return;
-
-  const items = menuData[type] || [];
-  container.innerHTML = '';
-
-  if (!items.length) {
-    container.innerHTML = '<div class="small">Нет позиций.</div>';
-    return;
-  }
-
-  items.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'card menu-card';
-    card.style.marginBottom = '8px';
-    card.style.padding = '8px';
-
-    // КАРТИНКА
-    if (item.image) {
-      const imgWrap = document.createElement('div');
-      imgWrap.className = 'menu-card-img-wrap';
-      imgWrap.style.marginBottom = '6px';
-      imgWrap.style.overflow = 'hidden';
-      imgWrap.style.borderRadius = '10px';
-
-      const img = document.createElement('img');
-      img.className = 'menu-card-img';
-      img.src = item.image;
-      img.alt = item.name || '';
-      img.style.display = 'block';
-      img.style.width = '100%';
-      img.style.height = '140px';
-      img.style.objectFit = 'cover';
-
-      imgWrap.appendChild(img);
-      card.appendChild(imgWrap);
-    }
-
-    const title = document.createElement('div');
-    title.className = 'card-title';
-    title.textContent = item.name || 'Позиция';
-
-    const meta = document.createElement('div');
-    meta.className = 'card-row';
-
-    // Цена
-    if (item.price) {
-      const p = document.createElement('div');
-      p.className = 'card-pill';
-
-      if (type === 'torts' || type === 'decor') {
-        p.textContent = `от ${item.price} ₽`;
-      } else {
-        p.textContent = `${item.price} ₽`;
-      }
-      meta.appendChild(p);
-    }
-
-    // Вес, если есть
-    if (item.weight) {
-      const p = document.createElement('div');
-      p.className = 'card-pill';
-      p.textContent = item.weight + ' г';
-      meta.appendChild(p);
-    }
-
-    card.appendChild(title);
-    if (meta.children.length) card.appendChild(meta);
-
-    const controls = document.createElement('div');
-    controls.style.display = 'flex';
-    controls.style.alignItems = 'center';
-    controls.style.justifyContent = 'space-between';
-    controls.style.marginTop = '6px';
-
-    const label = document.createElement('div');
-    label.className = 'small';
-    label.textContent = 'Кол-во:';
-
-    const minus = document.createElement('button');
-    minus.type = 'button';
-    minus.textContent = '−';
-    minus.style.width = '28px';
-    minus.style.height = '28px';
-    minus.style.borderRadius = '999px';
-    minus.style.border = '1px solid #ccc';
-    minus.style.background = '#fff';
-
-    const qtyInput = document.createElement('input');
-    qtyInput.type = 'number';
-    qtyInput.value = '0';
-    qtyInput.min = '0';
-    qtyInput.style.width = '40px';
-    qtyInput.style.textAlign = 'center';
-    qtyInput.style.borderRadius = '6px';
-    qtyInput.style.border = '1px solid #ddd';
-    qtyInput.style.fontSize = '13px';
-
-    const plus = document.createElement('button');
-    plus.type = 'button';
-    plus.textContent = '+';
-    plus.style.width = '28px';
-    plus.style.height = '28px';
-    plus.style.borderRadius = '999px';
-    plus.style.border = '1px solid #ccc';
-    plus.style.background = '#fff';
-
-    function updateQty(newQty) {
-      newQty = Math.max(0, Number(newQty) || 0);
-      qtyInput.value = String(newQty);
-
-      let typeKey;
-      if (type === 'torts') typeKey = 'tort';
-      else if (type === 'show') typeKey = 'show';
-      else if (type === 'decor') typeKey = 'decor';
-      else if (['snacks','salads','hot','garnish','fries','pizza','sweets'].includes(type)) typeKey = 'food';
-      else if (type === 'drinks') typeKey = 'drink';
-      else typeKey = 'other';
-
-      const idx = bookingState.menuItems.findIndex(
-        m => m.id === item.id && m.type === typeKey
-      );
-
-      if (newQty === 0) {
-        if (idx !== -1) bookingState.menuItems.splice(idx, 1);
-      } else {
-        if (idx === -1) {
-          bookingState.menuItems.push({
-            type: typeKey,
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            qty: newQty
-          });
-        } else {
-          bookingState.menuItems[idx].qty = newQty;
-        }
-      }
-      bookingRenderSummary();
-    }
-
-    minus.addEventListener('click', () => {
-      updateQty(Number(qtyInput.value || 0) - 1);
-    });
-    plus.addEventListener('click', () => {
-      updateQty(Number(qtyInput.value || 0) + 1);
-    });
-    qtyInput.addEventListener('change', () => {
-      updateQty(Number(qtyInput.value || 0));
-    });
-
-    controls.appendChild(label);
-    controls.appendChild(minus);
-    controls.appendChild(qtyInput);
-    controls.appendChild(plus);
-
-    card.appendChild(controls);
-    container.appendChild(card);
-  });
-}
-
-
-
- function bookingInitMenuTabs() {
-  const tabs = qsa('#bm-menu-tabs .tab-btn');
-  tabs.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.menuTab;
-
-      tabs.forEach(b => b.classList.toggle('active', b === btn));
-
-      const keys = [
-        'torts','show','decor',
-        'snacks','salads','hot',
-        'garnish','fries','pizza',
-        'sweets','drinks'
-      ];
-
-      keys.forEach(t => {
-        const pane = qs('#bm-menu-' + t);
-        if (!pane) return;
-        pane.style.display = (t === tab) ? 'block' : 'none';
-      });
-    });
-  });
-}
-// === ПЕРЕКЛЮЧЕНИЕ ТАБОВ МЕНЮ ===
-document.addEventListener('DOMContentLoaded', function () {
-  const tabs  = document.querySelectorAll('.menu-tabs .tab');
-  const panes = document.querySelectorAll('#bm-menu-lists .bm-menu-pane');
-
-  if (!tabs.length) return;
-
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const type = tab.dataset.type;
-
-      // Активный таб
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-
-      // Скрываем все панели
-      panes.forEach(p => p.style.display = 'none');
-
-      // Показываем нужную
-      const pane = document.getElementById('bm-menu-' + type);
-      if (pane) {
-        pane.style.display = 'block';
-      }
-    });
-  });
-});
-
-
-  function bookingInitStepsCommon() {
-    const back1 = qs('#bm-back-to-1');
-    if (back1) back1.addEventListener('click', () => bookingShowStep(1));
-
-    const back2 = qs('#bm-back-to-2');
-    if (back2) back2.addEventListener('click', () => bookingShowStep(2));
-
-    const back3 = qs('#bm-back-to-3');
-    if (back3) back3.addEventListener('click', () => bookingShowStep(3));
-
-    const nextToQuest = qs('#bm-next-to-quest');
-    if (nextToQuest) {
-      nextToQuest.addEventListener('click', async () => {
-        bookingShowStep(3);
-        await bookingLoadQuestSlots();
-      });
-    }
-
-    const nextToMenu = qs('#bm-next-to-menu');
-    if (nextToMenu) {
-      nextToMenu.addEventListener('click', async () => {
-        bookingShowStep(4);
-        await bookingLoadMenu();
-      });
-    }
-
-    const finishBtn = qs('#bm-finish');
-    if (finishBtn) {
-      finishBtn.addEventListener('click', async () => {
-        const phoneRaw = window.__pandoroomPhone || '';
-        const phone = phoneRaw.replace(/\D/g, '');
-        if (!phone) {
-          alert('Не удалось определить телефон. Откройте личный кабинет через бота, чтобы мы знали ваш номер.');
-          return;
-        }
-
-        if (!bookingState.date || !bookingState.time) {
-          alert('Пожалуйста, укажите дату и время мероприятия.');
-          return;
-        }
-        if (!bookingState.table) {
-          alert('Пожалуйста, выберите стол.');
-          return;
-        }
-
-        let total = 0;
-      
-if (Array.isArray(bookingState.quests)) {
-  bookingState.quests.forEach(q => {
-    if (q.price) total += Number(q.price) || 0;
-  });
-}
-        bookingState.menuItems.forEach(item => {
-          total += (Number(item.price) || 0) * (Number(item.qty) || 0);
-        });
-
-        const tovItems = bookingState.menuItems
-          .filter(item => Number(item.qty) > 0)
-          .map(item => ({
-            productId: item.id,
-            type: 'Product',
-            amount: item.qty,
-            naz: item.name
-          }));
-
-   const kvItems = [];
-if (Array.isArray(bookingState.quests) && bookingState.quests.length) {
-  bookingState.quests.forEach(q => {
-    kvItems.push(
-      (q.title || 'Квест') +
-      ' ' + (bookingState.date || '') +
-      ' ' + (q.time || '')
-    );
-  });
-}
-
-
-       const svkv = (bookingState.quests && bookingState.quests.length) ? 0 : 1;
-
-        const tortNames = bookingState.menuItems
-          .filter(i => i.type === 'tort')
-          .map(i => i.name)
-          .join(', ');
-
-        const zalLabel = bookingState.table
-          ? (bookingState.table.label || bookingState.table.name || '')
-          : '';
-
-        const contactWay = 'Telegram mini-app';
-
-        const body = new URLSearchParams();
-
-        tovItems.forEach((item, index) => {
-          body.append(`tov[${index}][productId]`, item.productId);
-          body.append(`tov[${index}][type]`, item.type);
-          body.append(`tov[${index}][amount]`, String(item.amount));
-          body.append(`tov[${index}][naz]`, item.naz);
-        });
-
-        kvItems.forEach((val, index) => {
-          body.append(`kv[${index}]`, val);
-        });
-
-        body.append('zal', zalLabel);
-        body.append('svkv', String(svkv));
-        body.append('tort', tortNames);
-        body.append('suy', String(total));
-        body.append('ach', bookingState.time || '');
-        body.append('datez', bookingState.date || '');
-        body.append('nam', bookingState.name || '');
-        body.append('reb', bookingState.name || '');
-        body.append('vozr', bookingState.age || '');
-        body.append('tel', phone);
-        body.append('det', String(bookingState.kids || 0));
-        body.append('vzrosl', String(bookingState.adults || 0));
-        body.append('sp', contactWay);
-
-        try {
-          const res = await fetch('https://pandoroom.org/prechek.php', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
-            },
-            body: body.toString()
-          });
-alert('Заявка отправлена! Менеджер свяжется с вами.');
-          const text = await res.text();
-          console.log('prechek.php response:', text);
-
-          
-
-       if (window.Telegram && window.Telegram.WebApp) {
-  const phoneRaw = window.__pandoroomPhone || '';
-  const phone = phoneRaw.replace(/\D/g, '');
-
-  const questsSummary = (Array.isArray(bookingState.quests) && bookingState.quests.length)
-    ? bookingState.quests.map(q =>
-        (q.title || 'Квест') + ' ' +
-        (bookingState.date || '') + ' ' +
-        (q.time || '')
-      )
-    : [];
-
-  const menuSummary = bookingState.menuItems
-    .filter(i => Number(i.qty) > 0)
-    .map(i => `${i.name} × ${i.qty}`);
-
-  const zalLabel = bookingState.table
-    ? (bookingState.table.label || bookingState.table.name || '')
-    : '';
-
-  window.Telegram.WebApp.sendData(JSON.stringify({
-    action: 'event_booking_created',
-    timestamp: Date.now(),
-    phone: phone,
-    name: bookingState.name || null,
-    age: bookingState.age || null,
-    date: bookingState.date || null,
-    time: bookingState.time || null,
-    hall: zalLabel || null,
-    kids: bookingState.kids || 0,
-    adults: bookingState.adults || 0,
-    quests: questsSummary,
-    menu: menuSummary,
-    total: total
-  }));
-}
-
-        } catch (e) {
-          console.error(e);
-          alert('Не удалось отправить заявку. Попробуйте ещё раз или свяжитесь с менеджером.');
-        }
-      });
-    }
-  }
-function initBookingMasterClose() {
-  const closeBtn = document.getElementById('booking-master-close');
-  if (!closeBtn) return;
-
-  closeBtn.addEventListener('click', () => {
-    const master = document.getElementById('booking-master');
-    if (master) {
-      master.style.display = 'none';
-    }
-
-
-  });
-}
-
-  // =============== СТАРТ ===============  
-  document.addEventListener('DOMContentLoaded', () => {
-    const params = getQueryParams();
-    const phone = params.phone || '';
-
-    initTabs();
-    initActions();
-    loadAll(phone, params);
-
-if (qs('#booking-master')) {
-    bookingInitStep1();
-    bookingInitStepsCommon();
-    bookingInitMenuTabs();
-    bookingRenderSummary();
-    bookingShowStep(1);
-    initBookingMasterClose(); // 👉 навешиваем крестик
-  }
-  });
-</script>
+    <script src="script.js"></script>
 </body>
 </html>
