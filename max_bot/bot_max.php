@@ -5,7 +5,7 @@
 
 // Токен и API MAX-бота
 // В проде подставь реальные значения MAX (например из переменных окружения).
-$token  = getenv('MAX_BOT_TOKEN') ?: 'PUT_MAX_BOT_TOKEN_HERE';
+$token  = getenv('MAX_BOT_TOKEN') ?: 'f9LHodD0cOIgc-YSrlBbzf37WFvlDOKP04vKXpZizxx5_OpLTWMOngx_5jVQQfZH85m_PXYWRoe43IT31N4a';
 $apiUrl = getenv('MAX_API_URL') ?: "https://platform-api.max.ru";
 
 // URL Mini App (index.html с ЛК)
