@@ -97,27 +97,176 @@ function httpRequest($url, $postData = null, $headers = [], $timeout = 5) {
     return $result;
 }
 
+function maxApiGetByPath(array $data, $path, $default = null) {
+    $parts = explode('.', $path);
+    $cur = $data;
+    foreach ($parts as $part) {
+        if (!is_array($cur) || !array_key_exists($part, $cur)) {
+            return $default;
+        }
+        $cur = $cur[$part];
+    }
+    return $cur;
+}
+
+function maxApiMethodAliases() {
+    return [
+        'sendMessage'         => ['messages/send', 'messages.send'],
+        'sendPhoto'           => ['messages/send', 'messages.send'],
+        'sendDocument'        => ['messages/send', 'messages.send'],
+        'deleteMessage'       => ['messages/delete', 'messages.delete'],
+        'createForumTopic'    => ['chats/topics/create', 'topics/create'],
+        'answerCallbackQuery' => ['callbacks/answer', 'callbacks.answer'],
+        'getChatMember'       => ['chats/members/get', 'members/get'],
+        'setMessageReaction'  => ['messages/reactions/set', 'reactions/set'],
+    ];
+}
+
+function maxApiRequest($method, array $params = []) {
+    global $apiUrl, $token;
+
+    $aliases = maxApiMethodAliases();
+    $methodsToTry = [$method];
+    if (!empty($aliases[$method])) {
+        $methodsToTry = array_merge($methodsToTry, $aliases[$method]);
+    }
+    $methodsToTry = array_values(array_unique($methodsToTry));
+
+    foreach ($methodsToTry as $apiMethod) {
+        $url = rtrim($apiUrl, '/') . '/' . ltrim($apiMethod, '/');
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($params, JSON_UNESCAPED_UNICODE),
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'Authorization: Bearer ' . $token,
+            ],
+            CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        ]);
+
+        $response = curl_exec($ch);
+        if ($response === false) {
+            logMsg('MAX CURL ERROR: ' . curl_error($ch) . ' URL=' . $url);
+            curl_close($ch);
+            continue;
+        }
+
+        curl_close($ch);
+        logMsg('MAX RESPONSE [' . $apiMethod . ']: ' . $response);
+
+        $decoded = json_decode($response, true);
+        if (!is_array($decoded)) {
+            return $response;
+        }
+
+        $ok = $decoded['ok'] ?? $decoded['success'] ?? null;
+        if ($ok === true || !isset($decoded['error'])) {
+            return $response;
+        }
+    }
+
+    return json_encode([
+        'ok' => false,
+        'error' => 'MAX API request failed for method: ' . $method,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+function normalizeMaxUpdate($update) {
+    if (!is_array($update)) {
+        return [];
+    }
+
+    if (isset($update['message']) || isset($update['callback_query']) || isset($update['message_reaction'])) {
+        return $update;
+    }
+
+    $type = $update['update_type'] ?? $update['type'] ?? $update['event'] ?? $update['event_type'] ?? '';
+    $normalized = [];
+
+    $messageCandidatePaths = [
+        'message',
+        'payload.message',
+        'data.message',
+        'object.message',
+    ];
+
+    $callbackCandidatePaths = [
+        'callback_query',
+        'payload.callback_query',
+        'data.callback_query',
+        'callback',
+        'payload.callback',
+    ];
+
+    foreach ($callbackCandidatePaths as $path) {
+        $cb = maxApiGetByPath($update, $path);
+        if (is_array($cb)) {
+            $normalized['callback_query'] = $cb;
+            break;
+        }
+    }
+
+    foreach ($messageCandidatePaths as $path) {
+        $msg = maxApiGetByPath($update, $path);
+        if (is_array($msg)) {
+            $normalized['message'] = $msg;
+            break;
+        }
+    }
+
+    if (!isset($normalized['message']) && ($type === 'message_created' || $type === 'new_message')) {
+        $msg = [
+            'message_id' => $update['message_id'] ?? $update['payload']['message_id'] ?? null,
+            'text'       => $update['text'] ?? $update['payload']['text'] ?? $update['body'] ?? '',
+            'chat'       => [
+                'id'   => $update['chat_id'] ?? $update['payload']['chat_id'] ?? null,
+                'type' => $update['chat_type'] ?? $update['payload']['chat_type'] ?? 'private',
+            ],
+            'from'       => [
+                'id'         => $update['user_id'] ?? $update['payload']['user_id'] ?? null,
+                'first_name' => $update['first_name'] ?? $update['payload']['first_name'] ?? '',
+                'last_name'  => $update['last_name'] ?? $update['payload']['last_name'] ?? '',
+                'username'   => $update['username'] ?? $update['payload']['username'] ?? '',
+            ],
+        ];
+        $normalized['message'] = $msg;
+    }
+
+    if (!isset($normalized['callback_query']) && ($type === 'callback_query' || $type === 'button_pressed')) {
+        $cb = [
+            'id'   => $update['callback_id'] ?? $update['payload']['callback_id'] ?? null,
+            'data' => $update['data'] ?? $update['payload']['data'] ?? '',
+            'from' => [
+                'id'         => $update['user_id'] ?? $update['payload']['user_id'] ?? null,
+                'first_name' => $update['first_name'] ?? $update['payload']['first_name'] ?? '',
+                'last_name'  => $update['last_name'] ?? $update['payload']['last_name'] ?? '',
+                'username'   => $update['username'] ?? $update['payload']['username'] ?? '',
+            ],
+            'message' => [
+                'message_id' => $update['message_id'] ?? $update['payload']['message_id'] ?? null,
+                'chat'       => [
+                    'id' => $update['chat_id'] ?? $update['payload']['chat_id'] ?? null,
+                ],
+                'message_thread_id' => $update['thread_id'] ?? $update['payload']['thread_id'] ?? null,
+            ],
+        ];
+        $normalized['callback_query'] = $cb;
+    }
+
+    if (!$normalized) {
+        return $update;
+    }
+
+    return $normalized;
+}
+
 // Запрос к API MAX (универсальный; сигнатура сохранена для совместимости логики)
 function tgRequest($method, array $params = []) {
-    global $apiUrl;
-
-    $ch = curl_init($apiUrl . $method);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $params,
-        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-    ]);
-
-    $response = curl_exec($ch);
-    if ($response === false) {
-        logMsg('TG CURL ERROR: ' . curl_error($ch));
-    } else {
-        logMsg('TG RESPONSE: ' . $response);
-    }
-    curl_close($ch);
-
-    return $response;
+    return maxApiRequest($method, $params);
 }
 
 // Локальное хранилище исходящих сообщений бота клиенту
@@ -3336,10 +3485,12 @@ function handleMessageReaction($mr) {
 // ==========================
 
 $rawInput = file_get_contents('php://input');
-$update   = json_decode($rawInput, true);
+$updateRaw = json_decode($rawInput, true);
+$update   = normalizeMaxUpdate($updateRaw);
 logMsg('UPDATE: ' . $rawInput);
+logMsg('NORMALIZED UPDATE: ' . json_encode($update, JSON_UNESCAPED_UNICODE));
 
-if (!$update) {
+if (!$update || !is_array($update)) {
     exit('OK');
 }
 
