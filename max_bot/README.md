@@ -7,14 +7,14 @@
 - Основной Telegram-бот в корне проекта не изменяется.
 - Добавлен адаптер API для MAX:
   - JSON-запросы
-  - `Authorization: Bearer <token>`
+  - `Authorization: <token>`
   - алиасы методов (чтобы плавно сопоставлять telegram-style имена с endpoint-ами MAX)
 - Добавлена нормализация webhook update под ожидаемую структуру (`message`, `callback_query`, `message_reaction`).
 
 ## Конфигурация
 Используются переменные окружения:
 - `MAX_BOT_TOKEN`
-- `MAX_API_URL` (базовый URL API MAX, например `https://api.max.ru/bot`)
+- `MAX_API_URL` (базовый URL API MAX, например `https://platform-api.max.ru`)
 
 ## Быстрый старт
 1. Настрой переменные окружения `MAX_BOT_TOKEN` и `MAX_API_URL`.

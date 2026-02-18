@@ -6,7 +6,7 @@
 // Токен и API MAX-бота
 // В проде подставь реальные значения MAX (например из переменных окружения).
 $token  = getenv('MAX_BOT_TOKEN') ?: 'PUT_MAX_BOT_TOKEN_HERE';
-$apiUrl = getenv('MAX_API_URL') ?: "https://api.max.ru/bot{$token}/";
+$apiUrl = getenv('MAX_API_URL') ?: "https://platform-api.max.ru";
 
 // URL Mini App (index.html с ЛК)
 $miniAppUrl = 'https://pandoroom.tech/telegramm/index.html'; // поменяй при необходимости
@@ -111,68 +111,243 @@ function maxApiGetByPath(array $data, $path, $default = null) {
 
 function maxApiMethodAliases() {
     return [
-        'sendMessage'         => ['messages/send', 'messages.send'],
-        'sendPhoto'           => ['messages/send', 'messages.send'],
-        'sendDocument'        => ['messages/send', 'messages.send'],
-        'deleteMessage'       => ['messages/delete', 'messages.delete'],
-        'createForumTopic'    => ['chats/topics/create', 'topics/create'],
-        'answerCallbackQuery' => ['callbacks/answer', 'callbacks.answer'],
-        'getChatMember'       => ['chats/members/get', 'members/get'],
-        'setMessageReaction'  => ['messages/reactions/set', 'reactions/set'],
+        'sendMessage'         => ['POST', '/messages'],
+        'sendPhoto'           => ['POST', '/messages'],
+        'sendDocument'        => ['POST', '/messages'],
+        'deleteMessage'       => ['DELETE', '/messages/{message_id}'],
+        'answerCallbackQuery' => ['POST', '/answers'],
+        'getMessages'         => ['GET', '/messages'],
+        'getMessage'          => ['GET', '/messages/{message_id}'],
     ];
 }
 
-function maxApiRequest($method, array $params = []) {
-    global $apiUrl, $token;
-
-    $aliases = maxApiMethodAliases();
-    $methodsToTry = [$method];
-    if (!empty($aliases[$method])) {
-        $methodsToTry = array_merge($methodsToTry, $aliases[$method]);
+function maxConvertInlineKeyboard($replyMarkup) {
+    if (is_string($replyMarkup)) {
+        $decoded = json_decode($replyMarkup, true);
+        if (is_array($decoded)) {
+            $replyMarkup = $decoded;
+        }
     }
-    $methodsToTry = array_values(array_unique($methodsToTry));
 
-    foreach ($methodsToTry as $apiMethod) {
-        $url = rtrim($apiUrl, '/') . '/' . ltrim($apiMethod, '/');
+    if (!is_array($replyMarkup)) {
+        return [];
+    }
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($params, JSON_UNESCAPED_UNICODE),
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-                'Accept: application/json',
-                'Authorization: Bearer ' . $token,
-            ],
-            CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-        ]);
+    $rows = $replyMarkup['inline_keyboard'] ?? [];
+    if (!is_array($rows) || !$rows) {
+        return [];
+    }
 
-        $response = curl_exec($ch);
-        if ($response === false) {
-            logMsg('MAX CURL ERROR: ' . curl_error($ch) . ' URL=' . $url);
-            curl_close($ch);
+    $buttons = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
             continue;
         }
-
-        curl_close($ch);
-        logMsg('MAX RESPONSE [' . $apiMethod . ']: ' . $response);
-
-        $decoded = json_decode($response, true);
-        if (!is_array($decoded)) {
-            return $response;
+        $line = [];
+        foreach ($row as $btn) {
+            if (!is_array($btn)) {
+                continue;
+            }
+            $text = (string)($btn['text'] ?? 'Кнопка');
+            if (!empty($btn['url'])) {
+                $line[] = [
+                    'type' => 'link',
+                    'text' => $text,
+                    'url'  => (string)$btn['url'],
+                ];
+            } elseif (!empty($btn['callback_data'])) {
+                $line[] = [
+                    'type'    => 'callback',
+                    'text'    => $text,
+                    'payload' => (string)$btn['callback_data'],
+                ];
+            }
         }
-
-        $ok = $decoded['ok'] ?? $decoded['success'] ?? null;
-        if ($ok === true || !isset($decoded['error'])) {
-            return $response;
+        if ($line) {
+            $buttons[] = $line;
         }
     }
 
-    return json_encode([
-        'ok' => false,
-        'error' => 'MAX API request failed for method: ' . $method,
-    ], JSON_UNESCAPED_UNICODE);
+    if (!$buttons) {
+        return [];
+    }
+
+    return [[
+        'type' => 'inline_keyboard',
+        'payload' => [
+            'buttons' => $buttons,
+        ],
+    ]];
+}
+
+function maxNormalizeResponseForLegacy($method, array $decoded) {
+    if (isset($decoded['ok'])) {
+        return $decoded;
+    }
+
+    $messageId = $decoded['message']['message_id']
+        ?? $decoded['message']['mid']
+        ?? $decoded['mid']
+        ?? $decoded['message_id']
+        ?? null;
+
+    $result = [];
+    if ($messageId !== null) {
+        $result['message_id'] = $messageId;
+    }
+
+    if ($method === 'getChatMember') {
+        $decoded = [
+            'ok' => true,
+            'result' => ['status' => 'member'],
+        ];
+        return $decoded;
+    }
+
+    return [
+        'ok' => !isset($decoded['error']),
+        'result' => $result ?: $decoded,
+        'description' => $decoded['message'] ?? ($decoded['error'] ?? ''),
+    ];
+}
+
+function maxApiRawRequest($httpMethod, $path, array $query = [], $body = null) {
+    global $apiUrl, $token;
+
+    $url = rtrim($apiUrl, '/') . '/' . ltrim($path, '/');
+    if (!empty($query)) {
+        $url .= '?' . http_build_query($query);
+    }
+
+    $headers = [
+        'Accept: application/json',
+        'Authorization: ' . $token,
+    ];
+
+    $ch = curl_init($url);
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST  => strtoupper($httpMethod),
+        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        CURLOPT_HTTPHEADER     => $headers,
+    ];
+
+    if ($body !== null) {
+        $json = json_encode($body, JSON_UNESCAPED_UNICODE);
+        $opts[CURLOPT_POSTFIELDS] = $json;
+        $opts[CURLOPT_HTTPHEADER][] = 'Content-Type: application/json';
+    }
+
+    curl_setopt_array($ch, $opts);
+    $response = curl_exec($ch);
+    if ($response === false) {
+        $err = curl_error($ch);
+        curl_close($ch);
+        logMsg('MAX CURL ERROR: ' . $err . ' URL=' . $url);
+        return ['ok' => false, 'error' => $err];
+    }
+
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    $decoded = json_decode($response, true);
+    if (!is_array($decoded)) {
+        $decoded = ['raw' => $response];
+    }
+
+    $decoded['_http_code'] = $httpCode;
+    logMsg('MAX RESPONSE [' . $httpMethod . ' ' . $path . ']: ' . json_encode($decoded, JSON_UNESCAPED_UNICODE));
+
+    return $decoded;
+}
+
+function maxApiRequest($method, array $params = []) {
+    $map = maxApiMethodAliases();
+
+    if ($method === 'createForumTopic' || $method === 'setMessageReaction') {
+        return [
+            'ok' => false,
+            'description' => 'Метод не поддерживается MAX API напрямую в этой копии бота',
+        ];
+    }
+
+    if ($method === 'getChatMember') {
+        return [
+            'ok' => true,
+            'result' => ['status' => 'member'],
+        ];
+    }
+
+    if (!isset($map[$method])) {
+        return [
+            'ok' => false,
+            'description' => 'Неизвестный метод: ' . $method,
+        ];
+    }
+
+    [$httpMethod, $pathTemplate] = $map[$method];
+    $query = [];
+    $body = null;
+    $path = $pathTemplate;
+
+    if ($method === 'sendMessage' || $method === 'sendPhoto' || $method === 'sendDocument') {
+        $chatId = $params['chat_id'] ?? null;
+        if ($chatId === null) {
+            return ['ok' => false, 'description' => 'chat_id обязателен'];
+        }
+
+        if ((int)$chatId > 0) {
+            $query['user_id'] = (int)$chatId;
+        } else {
+            $query['chat_id'] = (int)$chatId;
+        }
+
+        $text = (string)($params['text'] ?? '');
+        if ($method === 'sendPhoto') {
+            $text = (string)($params['caption'] ?? $text);
+            if (!empty($params['photo'])) {
+                $text .= ($text !== '' ? "\n" : '') . '📎 Фото: ' . $params['photo'];
+            }
+        }
+        if ($method === 'sendDocument') {
+            $text = (string)($params['caption'] ?? $text);
+            if (!empty($params['document'])) {
+                $text .= ($text !== '' ? "\n" : '') . '📎 Документ: ' . $params['document'];
+            }
+        }
+
+        $body = [
+            'text'   => $text,
+            'format' => 'html',
+            'notify' => true,
+        ];
+
+        $attachments = maxConvertInlineKeyboard($params['reply_markup'] ?? null);
+        if ($attachments) {
+            $body['attachments'] = $attachments;
+        }
+    } elseif ($method === 'answerCallbackQuery') {
+        $callbackId = (string)($params['callback_query_id'] ?? '');
+        if ($callbackId === '') {
+            return ['ok' => false, 'description' => 'callback_query_id обязателен'];
+        }
+        $query['callback_id'] = $callbackId;
+
+        $notification = (string)($params['text'] ?? '');
+        $body = $notification === '' ? ['notification' => '✅'] : ['notification' => $notification];
+    } elseif ($method === 'deleteMessage') {
+        $messageId = $params['message_id'] ?? null;
+        if ($messageId === null) {
+            return ['ok' => false, 'description' => 'message_id обязателен'];
+        }
+        $path = str_replace('{message_id}', urlencode((string)$messageId), $pathTemplate);
+        if (!empty($params['chat_id'])) {
+            $query['chat_id'] = (int)$params['chat_id'];
+        }
+    }
+
+    $resp = maxApiRawRequest($httpMethod, $path, $query, $body);
+    return maxNormalizeResponseForLegacy($method, $resp);
 }
 
 function normalizeMaxUpdate($update) {
@@ -184,89 +359,69 @@ function normalizeMaxUpdate($update) {
         return $update;
     }
 
+    // MAX может прислать либо единичный update, либо массив updates.
+    if (isset($update['updates']) && is_array($update['updates']) && !empty($update['updates'][0])) {
+        $update = $update['updates'][0];
+    }
+
     $type = $update['update_type'] ?? $update['type'] ?? $update['event'] ?? $update['event_type'] ?? '';
-    $normalized = [];
 
-    $messageCandidatePaths = [
-        'message',
-        'payload.message',
-        'data.message',
-        'object.message',
-    ];
-
-    $callbackCandidatePaths = [
-        'callback_query',
-        'payload.callback_query',
-        'data.callback_query',
-        'callback',
-        'payload.callback',
-    ];
-
-    foreach ($callbackCandidatePaths as $path) {
-        $cb = maxApiGetByPath($update, $path);
-        if (is_array($cb)) {
-            $normalized['callback_query'] = $cb;
-            break;
-        }
-    }
-
-    foreach ($messageCandidatePaths as $path) {
-        $msg = maxApiGetByPath($update, $path);
-        if (is_array($msg)) {
-            $normalized['message'] = $msg;
-            break;
-        }
-    }
-
-    if (!isset($normalized['message']) && ($type === 'message_created' || $type === 'new_message')) {
-        $msg = [
-            'message_id' => $update['message_id'] ?? $update['payload']['message_id'] ?? null,
-            'text'       => $update['text'] ?? $update['payload']['text'] ?? $update['body'] ?? '',
-            'chat'       => [
-                'id'   => $update['chat_id'] ?? $update['payload']['chat_id'] ?? null,
-                'type' => $update['chat_type'] ?? $update['payload']['chat_type'] ?? 'private',
-            ],
-            'from'       => [
-                'id'         => $update['user_id'] ?? $update['payload']['user_id'] ?? null,
-                'first_name' => $update['first_name'] ?? $update['payload']['first_name'] ?? '',
-                'last_name'  => $update['last_name'] ?? $update['payload']['last_name'] ?? '',
-                'username'   => $update['username'] ?? $update['payload']['username'] ?? '',
-            ],
-        ];
-        $normalized['message'] = $msg;
-    }
-
-    if (!isset($normalized['callback_query']) && ($type === 'callback_query' || $type === 'button_pressed')) {
-        $cb = [
-            'id'   => $update['callback_id'] ?? $update['payload']['callback_id'] ?? null,
-            'data' => $update['data'] ?? $update['payload']['data'] ?? '',
-            'from' => [
-                'id'         => $update['user_id'] ?? $update['payload']['user_id'] ?? null,
-                'first_name' => $update['first_name'] ?? $update['payload']['first_name'] ?? '',
-                'last_name'  => $update['last_name'] ?? $update['payload']['last_name'] ?? '',
-                'username'   => $update['username'] ?? $update['payload']['username'] ?? '',
-            ],
-            'message' => [
-                'message_id' => $update['message_id'] ?? $update['payload']['message_id'] ?? null,
-                'chat'       => [
-                    'id' => $update['chat_id'] ?? $update['payload']['chat_id'] ?? null,
+    if ($type === 'message_callback' || isset($update['callback'])) {
+        $cb = $update['callback'] ?? [];
+        $sender = $cb['sender'] ?? [];
+        $message = $cb['message'] ?? [];
+        return [
+            'callback_query' => [
+                'id' => $cb['callback_id'] ?? null,
+                'data' => $cb['payload'] ?? '',
+                'from' => [
+                    'id' => $sender['user_id'] ?? null,
+                    'first_name' => $sender['name'] ?? '',
+                    'last_name' => '',
+                    'username' => $sender['username'] ?? '',
                 ],
-                'message_thread_id' => $update['thread_id'] ?? $update['payload']['thread_id'] ?? null,
+                'message' => [
+                    'message_id' => $message['message_id'] ?? ($message['mid'] ?? null),
+                    'text' => maxApiGetByPath($message, 'body.text', ''),
+                    'chat' => [
+                        'id' => maxApiGetByPath($message, 'recipient.chat_id') ?? maxApiGetByPath($message, 'chat_id'),
+                        'type' => 'supergroup',
+                    ],
+                    'message_thread_id' => $message['thread_id'] ?? null,
+                ],
             ],
         ];
-        $normalized['callback_query'] = $cb;
     }
 
-    if (!$normalized) {
-        return $update;
+    if ($type === 'message_created' || $type === 'new_message' || isset($update['message']) || isset($update['body'])) {
+        $message = $update['message'] ?? $update;
+        $sender = $message['sender'] ?? [];
+        return [
+            'message' => [
+                'message_id' => $message['message_id'] ?? ($message['mid'] ?? null),
+                'text' => maxApiGetByPath($message, 'body.text', $message['text'] ?? ''),
+                'chat' => [
+                    'id' => maxApiGetByPath($message, 'recipient.chat_id') ?? ($message['chat_id'] ?? null),
+                    'type' => ($message['chat_type'] ?? 'private'),
+                ],
+                'from' => [
+                    'id' => $sender['user_id'] ?? ($message['user_id'] ?? null),
+                    'first_name' => $sender['name'] ?? ($message['first_name'] ?? ''),
+                    'last_name' => '',
+                    'username' => $sender['username'] ?? ($message['username'] ?? ''),
+                ],
+                'message_thread_id' => $message['thread_id'] ?? null,
+            ],
+        ];
     }
 
-    return $normalized;
+    return $update;
 }
 
 // Запрос к API MAX (универсальный; сигнатура сохранена для совместимости логики)
 function tgRequest($method, array $params = []) {
-    return maxApiRequest($method, $params);
+    $resp = maxApiRequest($method, $params);
+    return json_encode($resp, JSON_UNESCAPED_UNICODE);
 }
 
 // Локальное хранилище исходящих сообщений бота клиенту
