@@ -201,6 +201,8 @@ function maxNormalizeResponseForLegacy($method, array $decoded) {
 
     $messageId = $decoded['message']['message_id']
         ?? $decoded['message']['mid']
+        ?? $decoded['message']['body']['mid']
+        ?? $decoded['body']['mid']
         ?? $decoded['mid']
         ?? $decoded['message_id']
         ?? null;
@@ -233,46 +235,62 @@ function maxApiRawRequest($httpMethod, $path, array $query = [], $body = null) {
         $url .= '?' . http_build_query($query);
     }
 
-    $headers = [
-        'Accept: application/json',
+    $authHeaders = [
         'Authorization: ' . $token,
+        'Authorization: Bearer ' . $token,
     ];
 
-    $ch = curl_init($url);
-    $opts = [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CUSTOMREQUEST  => strtoupper($httpMethod),
-        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-        CURLOPT_HTTPHEADER     => $headers,
-    ];
+    $lastDecoded = ['ok' => false, 'error' => 'MAX request not sent'];
 
-    if ($body !== null) {
-        $json = json_encode($body, JSON_UNESCAPED_UNICODE);
-        $opts[CURLOPT_POSTFIELDS] = $json;
-        $opts[CURLOPT_HTTPHEADER][] = 'Content-Type: application/json';
-    }
+    foreach ($authHeaders as $authHeader) {
+        $headers = [
+            'Accept: application/json',
+            $authHeader,
+        ];
 
-    curl_setopt_array($ch, $opts);
-    $response = curl_exec($ch);
-    if ($response === false) {
-        $err = curl_error($ch);
+        $ch = curl_init($url);
+        $opts = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST  => strtoupper($httpMethod),
+            CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+            CURLOPT_HTTPHEADER     => $headers,
+        ];
+
+        if ($body !== null) {
+            $json = json_encode($body, JSON_UNESCAPED_UNICODE);
+            $opts[CURLOPT_POSTFIELDS] = $json;
+            $opts[CURLOPT_HTTPHEADER][] = 'Content-Type: application/json';
+        }
+
+        curl_setopt_array($ch, $opts);
+        $response = curl_exec($ch);
+        if ($response === false) {
+            $err = curl_error($ch);
+            curl_close($ch);
+            logMsg('MAX CURL ERROR: ' . $err . ' URL=' . $url . ' AUTH=' . $authHeader);
+            $lastDecoded = ['ok' => false, 'error' => $err];
+            continue;
+        }
+
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         curl_close($ch);
-        logMsg('MAX CURL ERROR: ' . $err . ' URL=' . $url);
-        return ['ok' => false, 'error' => $err];
+
+        $decoded = json_decode($response, true);
+        if (!is_array($decoded)) {
+            $decoded = ['raw' => $response];
+        }
+
+        $decoded['_http_code'] = $httpCode;
+        $decoded['_auth_header'] = $authHeader;
+        logMsg('MAX RESPONSE [' . $httpMethod . ' ' . $path . ']: ' . json_encode($decoded, JSON_UNESCAPED_UNICODE));
+
+        $lastDecoded = $decoded;
+        if ($httpCode !== 401 && $httpCode !== 403) {
+            break;
+        }
     }
 
-    $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
-
-    $decoded = json_decode($response, true);
-    if (!is_array($decoded)) {
-        $decoded = ['raw' => $response];
-    }
-
-    $decoded['_http_code'] = $httpCode;
-    logMsg('MAX RESPONSE [' . $httpMethod . ' ' . $path . ']: ' . json_encode($decoded, JSON_UNESCAPED_UNICODE));
-
-    return $decoded;
+    return $lastDecoded;
 }
 
 function maxApiRequest($method, array $params = []) {
@@ -333,9 +351,13 @@ function maxApiRequest($method, array $params = []) {
 
         $body = [
             'text'   => $text,
-            'format' => 'html',
             'notify' => true,
         ];
+
+        $parseMode = strtolower((string)($params['parse_mode'] ?? ''));
+        if ($parseMode === 'html' || $parseMode === 'markdown') {
+            $body['format'] = $parseMode;
+        }
 
         $attachments = maxConvertInlineKeyboard($params['reply_markup'] ?? null);
         if ($attachments) {
