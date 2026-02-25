@@ -1,27 +1,37 @@
-# MAX bot copy
+# MAX bot copy + Telegram CRM bridge
 
-Это отдельная копия бота для мессенджера **MAX**.
+Эта папка содержит копию бота для MAX и мост в Telegram CRM.
 
-## Что сделано
-- Скопирован текущий функционал Telegram-бота в `max_bot/bot_max.php`.
-- Основной Telegram-бот в корне проекта не изменяется.
-- Добавлен адаптер API для MAX:
-  - JSON-запросы
-  - `Authorization: <token>`
-  - алиасы методов (чтобы плавно сопоставлять telegram-style имена с endpoint-ами MAX)
-- Добавлена нормализация webhook update под ожидаемую структуру (`message`, `callback_query`, `message_reaction`).
+## Что важно
+- `bot_max.php` — версия логики под MAX API.
+- `max_bridge_daemon.php` — двусторонний мост:
+  - сообщения клиента из MAX -> в Telegram CRM (в topic с меткой MAX)
+  - ответы менеджера в этом topic -> обратно клиенту в MAX
 
-## Конфигурация
-Используются переменные окружения:
+## Переменные окружения
+Обязательно:
 - `MAX_BOT_TOKEN`
-- `MAX_API_URL` (базовый URL API MAX, например `https://platform-api.max.ru`)
+- `TELEGRAM_CRM_BOT_TOKEN`
 
-## Быстрый старт
-1. Настрой переменные окружения `MAX_BOT_TOKEN` и `MAX_API_URL`.
-2. Направь webhook MAX на `max_bot/bot_max.php`.
-3. Проверь доступы бота к чату поддержки и тредам (если в MAX используются аналогичные сущности).
+Опционально:
+- `MAX_API_URL` (по умолчанию `https://platform-api.max.ru/`)
 
-## Важно
-- Бизнес-логика скопирована из Telegram-версии.
-- Если конкретные endpoint-ы в MAX отличаются, обнови маппинг в `maxApiMethodAliases()` в `bot_max.php`.
-- Документация: https://dev.max.ru/docs-api
+## Запуск моста
+```bash
+cd max_bot
+MAX_BOT_TOKEN='...' TELEGRAM_CRM_BOT_TOKEN='...' php max_bridge_daemon.php
+```
+
+## Что делает мост
+1. Слушает `GET /updates` в MAX (long polling).
+2. На первое сообщение пользователя создаёт topic в Telegram CRM (`SUPPORT_CHAT_ID`) и сохраняет связку user_id <-> thread_id в `max_telegram_threads.json`.
+3. Пересылает каждое сообщение клиента в этот topic с пометкой `🟣 MAX`.
+4. Читает ответы менеджеров в Telegram (`getUpdates`) и отправляет их клиенту в MAX с подписью `Команда Pandoroom`.
+5. При ответах клиенту добавляет inline-клавиатуру с теми же клиентскими кнопками, что и в Telegram-боте.
+
+## Файлы состояния
+- `max_telegram_threads.json` — связка MAX user и Telegram thread.
+- `max_bridge_state.json` — `marker` MAX и `offset` Telegram.
+
+## Примечание
+Основной Telegram-бот (`/workspace/bot/bot.php`) не изменяется.
