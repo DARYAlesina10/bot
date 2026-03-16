@@ -2068,6 +2068,77 @@ function sendRulesInfoToThread($threadId, $replyToMessage = null)
     }
 }
 
+function resolveMaxExternalUserIdByThread($threadId)
+{
+    $mapFile = __DIR__ . '/max_bot/max_telegram_threads.json';
+    if (!file_exists($mapFile)) {
+        return null;
+    }
+
+    $json = file_get_contents($mapFile);
+    $data = json_decode($json, true);
+    if (!is_array($data)) {
+        return null;
+    }
+
+    $byThread = $data['by_thread'] ?? [];
+    $row = $byThread[(string)$threadId] ?? null;
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $maxUserId = $row['user_id'] ?? null;
+    if ($maxUserId === null || $maxUserId === '') {
+        return null;
+    }
+
+    return (int)$maxUserId;
+}
+
+function sendMessageToMaxUser($maxUserId, $text)
+{
+    $token = getenv('MAX_BOT_TOKEN');
+    if (!$token) {
+        $token = 'f9LHodD0cOIgc-YSrlBbzf37WFvlDOKP04vKXpZizxx5_OpLTWMOngx_5jVQQfZH85m_PXYWRoe43IT31N4a';
+    }
+
+    $url = 'https://platform-api.max.ru/messages?user_id=' . (int)$maxUserId;
+    $payload = json_encode([
+        'text' => (string)$text,
+        'notify' => true,
+    ], JSON_UNESCAPED_UNICODE);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $token,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_TIMEOUT => 20,
+    ]);
+
+    $response = curl_exec($ch);
+    if ($response === false) {
+        $err = curl_error($ch);
+        curl_close($ch);
+        return ['ok' => false, 'description' => $err];
+    }
+
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $decoded = json_decode($response, true);
+    if ($httpCode !== 200) {
+        $errText = is_array($decoded) ? json_encode($decoded, JSON_UNESCAPED_UNICODE) : $response;
+        return ['ok' => false, 'description' => 'HTTP ' . $httpCode . ': ' . $errText];
+    }
+
+    return ['ok' => true, 'result' => $decoded];
+}
+
 function performManagerAction($action, $userId, $threadId, array $context = [])
 {
     $callbackId     = $context['callback_id']     ?? null;
@@ -2854,6 +2925,7 @@ function handleManagerMessage($message) {
     $context      = resolveThreadUserContext($threadId, $mappedUserId);
     $userId       = $context['user_id'];
     $phone        = $context['phone'];
+    $maxExternalUserId = resolveMaxExternalUserIdByThread($threadId);
 
     $from        = $message['from'] ?? [];
     $managerName = trim(
@@ -2960,7 +3032,7 @@ function handleManagerMessage($message) {
         return;
     }
 
-    if (!$userId) {
+    if (!$userId && !$maxExternalUserId) {
         tgRequest('sendMessage', [
             'chat_id'           => SUPPORT_CHAT_ID,
             'message_thread_id' => $threadId,
@@ -2979,6 +3051,31 @@ function handleManagerMessage($message) {
 
     // Отправляем клиенту в зависимости от типа
     $adminMessageId = (int)($message['message_id'] ?? 0);
+
+    if (!$userId && $maxExternalUserId) {
+        if ($hasPhoto) {
+            $textForMax = "💬 Команда Pandoroom:\n" . ($caption !== '' ? $caption : '[фото от менеджера]');
+            $resp = sendMessageToMaxUser($maxExternalUserId, $textForMax);
+        } elseif ($hasDocument) {
+            $textForMax = "💬 Команда Pandoroom:\n" . ($caption !== '' ? $caption : '[документ от менеджера]');
+            $resp = sendMessageToMaxUser($maxExternalUserId, $textForMax);
+        } else {
+            $textForMax = "💬 Команда Pandoroom:\n" . $rawText;
+            $resp = sendMessageToMaxUser($maxExternalUserId, $textForMax);
+        }
+
+        if (empty($resp['ok'])) {
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => 'Не удалось отправить сообщение в MAX: ' . ($resp['description'] ?? 'unknown error'),
+                'reply_to_message_id' => $message['message_id'] ?? null,
+                'allow_sending_without_reply' => true,
+            ]);
+        }
+
+        return;
+    }
 
     if ($hasPhoto) {
         $photo = end($message['photo']);
