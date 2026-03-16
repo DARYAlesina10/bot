@@ -2084,36 +2084,46 @@ function sendMessageToMaxUser($maxUserId, $text, array $attachments = [])
     }
 
     $payload = json_encode($body, JSON_UNESCAPED_UNICODE);
+    $authHeaders = [
+        'Authorization: ' . $token,
+        'Authorization: Bearer ' . $token,
+    ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: ' . $token,
-            'Content-Type: application/json',
-        ],
-        CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_TIMEOUT => 20,
-    ]);
+    $lastError = 'unknown error';
+    foreach ($authHeaders as $authHeader) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                $authHeader,
+                'Content-Type: application/json',
+            ],
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_TIMEOUT => 20,
+        ]);
 
-    $response = curl_exec($ch);
-    if ($response === false) {
-        $err = curl_error($ch);
+        $response = curl_exec($ch);
+        if ($response === false) {
+            $lastError = 'curl: ' . curl_error($ch);
+            curl_close($ch);
+            continue;
+        }
+
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        return ['ok' => false, 'description' => $err];
-    }
 
-    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+        $decoded = json_decode($response, true);
+        if ($httpCode >= 200 && $httpCode < 300) {
+            return ['ok' => true, 'result' => $decoded];
+        }
 
-    $decoded = json_decode($response, true);
-    if ($httpCode !== 200) {
         $errText = is_array($decoded) ? json_encode($decoded, JSON_UNESCAPED_UNICODE) : $response;
-        return ['ok' => false, 'description' => 'HTTP ' . $httpCode . ': ' . $errText];
+        $lastError = 'HTTP ' . $httpCode . ': ' . $errText;
     }
 
-    return ['ok' => true, 'result' => $decoded];
+    logMsg('MAX SEND ERROR user_id=' . (int)$maxUserId . ' error=' . $lastError);
+    return ['ok' => false, 'description' => $lastError];
 }
 
 function performManagerAction($action, $userId, $threadId, array $context = [])
@@ -3057,6 +3067,7 @@ function handleManagerMessage($message) {
         }
 
         $textForMax = "💬 Команда Pandoroom:\n" . ($caption !== '' ? $caption : '[фото от менеджера]');
+        logMsg('MAX fallback: photo thread=' . (int)$threadId . ' user_id=' . (int)$userId);
         $maxResp = sendMessageToMaxUser($userId, $textForMax);
         if (empty($maxResp['ok'])) {
             tgRequest('sendMessage', [
@@ -3101,6 +3112,7 @@ function handleManagerMessage($message) {
         }
 
         $textForMax = "💬 Команда Pandoroom:\n" . ($caption !== '' ? $caption : '[документ от менеджера]');
+        logMsg('MAX fallback: document thread=' . (int)$threadId . ' user_id=' . (int)$userId);
         $maxResp = sendMessageToMaxUser($userId, $textForMax);
         if (empty($maxResp['ok'])) {
             tgRequest('sendMessage', [
@@ -3125,6 +3137,7 @@ function handleManagerMessage($message) {
     }
 
     $textForMax = "💬 Команда Pandoroom:\n" . $rawText;
+    logMsg('MAX fallback: text thread=' . (int)$threadId . ' user_id=' . (int)$userId);
     $maxResp = sendMessageToMaxUser($userId, $textForMax);
     if (empty($maxResp['ok'])) {
         tgRequest('sendMessage', [
