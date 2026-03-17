@@ -2126,6 +2126,49 @@ function sendMessageToMaxUser($maxUserId, $text, array $attachments = [])
     return ['ok' => false, 'description' => $lastError];
 }
 
+function extractMaxExternalUserIdFromText($text)
+{
+    if (!is_string($text) || $text === '') {
+        return null;
+    }
+
+    if (preg_match('/\[ext:\s*max_(\d+)\]/iu', $text, $m)) {
+        return (int)$m[1];
+    }
+
+    return null;
+}
+
+function resolveMaxExternalUserIdByThread($threadId, array $message = [])
+{
+    $row = support_get_thread_by_thread_id($threadId);
+    $stored = is_array($row) ? ($row['ext_max_user_id'] ?? null) : null;
+    if ($stored !== null && $stored !== '') {
+        return (int)$stored;
+    }
+
+    $candidates = [
+        $message['forum_topic_created']['name'] ?? null,
+        $message['forum_topic_edited']['name'] ?? null,
+        $message['reply_to_message']['forum_topic_created']['name'] ?? null,
+        $message['reply_to_message']['forum_topic_edited']['name'] ?? null,
+        $message['reply_to_message']['text'] ?? null,
+        $message['text'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $maxId = extractMaxExternalUserIdFromText($candidate);
+        if ($maxId) {
+            support_update_thread_by_thread_id($threadId, ['ext_max_user_id' => $maxId]);
+            logMsg('Resolved MAX ext user by thread title/payload thread=' . (int)$threadId . ' max_user_id=' . (int)$maxId);
+            return (int)$maxId;
+        }
+    }
+
+    return null;
+}
+
+
 function performManagerAction($action, $userId, $threadId, array $context = [])
 {
     $callbackId     = $context['callback_id']     ?? null;
@@ -2912,6 +2955,7 @@ function handleManagerMessage($message) {
     $context      = resolveThreadUserContext($threadId, $mappedUserId);
     $userId       = $context['user_id'];
     $phone        = $context['phone'];
+    $maxExternalUserId = resolveMaxExternalUserIdByThread($threadId, $message);
 
     $from        = $message['from'] ?? [];
     $managerName = trim(
@@ -3018,7 +3062,8 @@ function handleManagerMessage($message) {
         return;
     }
 
-    if (!$userId) {
+    if (!$userId && !$maxExternalUserId) {
+        logMsg('Manager reply dropped: no tg user and no ext max id for thread=' . (int)$threadId . ' update=' . json_encode($message, JSON_UNESCAPED_UNICODE));
         tgRequest('sendMessage', [
             'chat_id'           => SUPPORT_CHAT_ID,
             'message_thread_id' => $threadId,
@@ -3037,6 +3082,33 @@ function handleManagerMessage($message) {
 
     // Отправляем клиенту в зависимости от типа
     $adminMessageId = (int)($message['message_id'] ?? 0);
+
+    // MAX-only тред (без Telegram user_id), но с маркером [ext: max_123]
+    if (!$userId && $maxExternalUserId) {
+        if ($hasPhoto) {
+            $textForMax = "💬 Команда Pandoroom:
+" . ($caption !== '' ? $caption : '[фото от менеджера]');
+        } elseif ($hasDocument) {
+            $textForMax = "💬 Команда Pandoroom:
+" . ($caption !== '' ? $caption : '[документ от менеджера]');
+        } else {
+            $textForMax = "💬 Команда Pandoroom:
+" . $rawText;
+        }
+
+        logMsg('MAX direct reply from manager thread=' . (int)$threadId . ' max_user_id=' . (int)$maxExternalUserId);
+        $maxResp = sendMessageToMaxUser($maxExternalUserId, $textForMax);
+        if (empty($maxResp['ok'])) {
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => 'Не удалось отправить сообщение в MAX: ' . ($maxResp['description'] ?? 'unknown error'),
+                'reply_to_message_id' => $message['message_id'] ?? null,
+                'allow_sending_without_reply' => true,
+            ]);
+        }
+        return;
+    }
 
     if ($hasPhoto) {
         $photo = end($message['photo']);
@@ -3068,7 +3140,7 @@ function handleManagerMessage($message) {
 
         $textForMax = "💬 Команда Pandoroom:\n" . ($caption !== '' ? $caption : '[фото от менеджера]');
         logMsg('MAX fallback: photo thread=' . (int)$threadId . ' user_id=' . (int)$userId);
-        $maxResp = sendMessageToMaxUser($userId, $textForMax);
+        $maxResp = sendMessageToMaxUser($maxExternalUserId ?: $userId, $textForMax);
         if (empty($maxResp['ok'])) {
             tgRequest('sendMessage', [
                 'chat_id'           => SUPPORT_CHAT_ID,
@@ -3113,7 +3185,7 @@ function handleManagerMessage($message) {
 
         $textForMax = "💬 Команда Pandoroom:\n" . ($caption !== '' ? $caption : '[документ от менеджера]');
         logMsg('MAX fallback: document thread=' . (int)$threadId . ' user_id=' . (int)$userId);
-        $maxResp = sendMessageToMaxUser($userId, $textForMax);
+        $maxResp = sendMessageToMaxUser($maxExternalUserId ?: $userId, $textForMax);
         if (empty($maxResp['ok'])) {
             tgRequest('sendMessage', [
                 'chat_id'           => SUPPORT_CHAT_ID,
@@ -3138,7 +3210,7 @@ function handleManagerMessage($message) {
 
     $textForMax = "💬 Команда Pandoroom:\n" . $rawText;
     logMsg('MAX fallback: text thread=' . (int)$threadId . ' user_id=' . (int)$userId);
-    $maxResp = sendMessageToMaxUser($userId, $textForMax);
+    $maxResp = sendMessageToMaxUser($maxExternalUserId ?: $userId, $textForMax);
     if (empty($maxResp['ok'])) {
         tgRequest('sendMessage', [
             'chat_id'           => SUPPORT_CHAT_ID,
