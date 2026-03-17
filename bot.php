@@ -2132,7 +2132,15 @@ function extractMaxExternalUserIdFromText($text)
         return null;
     }
 
+    // Форматы, которые встречаются в CRM-тредах:
+    //   [ext: max_49054585]
+    //   External ID: max_49054585
+    //   External ID max_49054585
     if (preg_match('/\[ext:\s*max_(\d+)\]/iu', $text, $m)) {
+        return (int)$m[1];
+    }
+
+    if (preg_match('/external\s*id\s*:?\s*max_(\d+)/iu', $text, $m)) {
         return (int)$m[1];
     }
 
