@@ -2072,7 +2072,7 @@ function sendMessageToMaxUser($maxUserId, $text, array $attachments = [])
 {
     $token = getenv('MAX_BOT_TOKEN');
     if (!$token) {
-        $token = 'f9LHodD0cOIgc-YSrlBbzf37WFvlDOKP04vKXpZizxx5_OpLTWMOngx_5jVQQfZH85m_PXYWRoe43IT31N4a';
+        $token = 'f9LHodD0cOJ-MKQrxp7MdA-Tur3eTEZcvG9mY8FO8TdSbwyAPaw9qf-uO63t9xx65iPghgzzIFwD_jeTZJF8';
     }
 
     $url = 'https://platform-api.max.ru/messages?user_id=' . (int)$maxUserId;
