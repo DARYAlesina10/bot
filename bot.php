@@ -6,6 +6,7 @@
 // Токен бота от BotFather
 $token  = '7854808857:AAHmleyDhVZvpBrQXG1YiVbMl9gBfXak1xY';
 $apiUrl = "https://api.telegram.org/bot{$token}/";
+$telegramProxyUrl = 'http://l138267.hostde33.fornex.host/index.php';
 
 // URL Mini App (index.html с ЛК)
 $miniAppUrl = 'https://pandoroom.tech/telegramm/index.html'; // поменяй при необходимости
@@ -96,9 +97,47 @@ function httpRequest($url, $postData = null, $headers = [], $timeout = 5) {
     return $result;
 }
 
+function sendTelegramProxy($method, array $params = [])
+{
+    global $telegramProxyUrl;
+
+    $query = http_build_query(array_merge([
+        'method' => $method,
+    ], $params));
+
+    $ch = curl_init($telegramProxyUrl . '?' . $query);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        CURLOPT_TIMEOUT        => 15,
+    ]);
+
+    $response = curl_exec($ch);
+    $error    = curl_error($ch);
+    curl_close($ch);
+
+    return [
+        'response' => $response,
+        'error'    => $error,
+    ];
+}
+
 // Запрос к Telegram API (универсальный)
 function tgRequest($method, array $params = []) {
     global $apiUrl;
+
+    if (preg_match('/^send[A-Z]/', $method)) {
+        $proxyResult = sendTelegramProxy($method, $params);
+        if (!empty($proxyResult['error'])) {
+            logMsg('TG PROXY ERROR [' . $method . ']: ' . $proxyResult['error'] . ' PARAMS=' . json_encode($params, JSON_UNESCAPED_UNICODE));
+        } else {
+            logMsg('TG PROXY RESPONSE [' . $method . ']: ' . (string)$proxyResult['response']);
+        }
+
+        if (empty($proxyResult['error']) && $proxyResult['response'] !== false && $proxyResult['response'] !== null) {
+            return $proxyResult['response'];
+        }
+    }
 
     $ch = curl_init($apiUrl . $method);
     curl_setopt_array($ch, [
