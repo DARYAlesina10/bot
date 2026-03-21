@@ -6,7 +6,7 @@
 // Токен бота от BotFather
 $token  = '7854808857:AAHmleyDhVZvpBrQXG1YiVbMl9gBfXak1xY';
 $apiUrl = "https://api.telegram.org/bot{$token}/";
-$telegramProxyUrl = 'http://l138267.hostde33.fornex.host/index.php';
+$telegramProxyUrl = 'http://l138267.hostde33.fornex.host/telegram_proxy.php';
 
 // URL Mini App (index.html с ЛК)
 $miniAppUrl = 'https://pandoroom.tech/telegramm/index.html'; // поменяй при необходимости
@@ -97,27 +97,15 @@ function httpRequest($url, $postData = null, $headers = [], $timeout = 5) {
     return $result;
 }
 
-function sendTelegramProxy($threadId, $text, $chatId = null)
+function sendTelegramProxy($method, array $params = [])
 {
     global $telegramProxyUrl;
 
-    if ($chatId === null || $chatId === '') {
-        $chatId = SUPPORT_CHAT_ID;
-    }
-
-    $payload = [
-        'chat_id' => $chatId,
-        'text'    => $text,
-    ];
-    if ($threadId !== null && $threadId !== '') {
-        $payload['message_thread_id'] = $threadId;
-    }
-
-    $query = http_build_query($payload);
-
-    $ch = curl_init($telegramProxyUrl . '?' . $query);
+    $ch = curl_init($telegramProxyUrl . '?method=' . urlencode($method));
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $params,
         CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
         CURLOPT_TIMEOUT        => 15,
     ]);
@@ -138,13 +126,8 @@ function decodeTelegramProxyResponse($rawResponse)
         return null;
     }
 
-    $start = strpos($rawResponse, '{');
-    if ($start === false) {
-        return null;
-    }
-
-    $json = substr($rawResponse, $start);
-    $decoded = json_decode($json, true);
+    $trimmed = trim($rawResponse);
+    $decoded = json_decode($trimmed, true);
     if (!is_array($decoded)) {
         return null;
     }
@@ -156,21 +139,8 @@ function decodeTelegramProxyResponse($rawResponse)
 function tgRequest($method, array $params = []) {
     global $apiUrl;
 
-    $shouldUseProxy = (
-        $method === 'sendMessage'
-        && (string)($params['chat_id'] ?? '') === (string)SUPPORT_CHAT_ID
-        && isset($params['text'])
-        && !isset($params['parse_mode'])
-        && !isset($params['reply_markup'])
-        && !isset($params['reply_to_message_id'])
-    );
-
-    if ($shouldUseProxy) {
-        $proxyResult = sendTelegramProxy(
-            $params['message_thread_id'] ?? null,
-            $params['text'],
-            $params['chat_id'] ?? SUPPORT_CHAT_ID
-        );
+    if ($telegramProxyUrl) {
+        $proxyResult = sendTelegramProxy($method, $params);
 
         if (!empty($proxyResult['error'])) {
             logMsg('TG PROXY ERROR [' . $method . ']: ' . $proxyResult['error'] . ' PARAMS=' . json_encode($params, JSON_UNESCAPED_UNICODE));
@@ -182,10 +152,9 @@ function tgRequest($method, array $params = []) {
         if (
             empty($proxyResult['error'])
             && is_array($proxyDecoded)
-            && !empty($proxyDecoded['ok'])
-            && !empty($proxyDecoded['telegram_response']['ok'])
+            && array_key_exists('ok', $proxyDecoded)
         ) {
-            return json_encode($proxyDecoded['telegram_response'], JSON_UNESCAPED_UNICODE);
+            return json_encode($proxyDecoded, JSON_UNESCAPED_UNICODE);
         }
     }
 
