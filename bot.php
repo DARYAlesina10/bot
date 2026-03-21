@@ -97,13 +97,23 @@ function httpRequest($url, $postData = null, $headers = [], $timeout = 5) {
     return $result;
 }
 
-function sendTelegramProxy($method, array $params = [])
+function sendTelegramProxy($threadId, $text, $chatId = null)
 {
     global $telegramProxyUrl;
 
-    $query = http_build_query(array_merge([
-        'method' => $method,
-    ], $params));
+    if ($chatId === null || $chatId === '') {
+        $chatId = SUPPORT_CHAT_ID;
+    }
+
+    $payload = [
+        'chat_id' => $chatId,
+        'text'    => $text,
+    ];
+    if ($threadId !== null && $threadId !== '') {
+        $payload['message_thread_id'] = $threadId;
+    }
+
+    $query = http_build_query($payload);
 
     $ch = curl_init($telegramProxyUrl . '?' . $query);
     curl_setopt_array($ch, [
@@ -122,20 +132,60 @@ function sendTelegramProxy($method, array $params = [])
     ];
 }
 
+function decodeTelegramProxyResponse($rawResponse)
+{
+    if (!is_string($rawResponse) || $rawResponse === '') {
+        return null;
+    }
+
+    $start = strpos($rawResponse, '{');
+    if ($start === false) {
+        return null;
+    }
+
+    $json = substr($rawResponse, $start);
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+
+    return $decoded;
+}
+
 // Запрос к Telegram API (универсальный)
 function tgRequest($method, array $params = []) {
     global $apiUrl;
 
-    if (preg_match('/^send[A-Z]/', $method)) {
-        $proxyResult = sendTelegramProxy($method, $params);
+    $shouldUseProxy = (
+        $method === 'sendMessage'
+        && (string)($params['chat_id'] ?? '') === (string)SUPPORT_CHAT_ID
+        && isset($params['text'])
+        && !isset($params['parse_mode'])
+        && !isset($params['reply_markup'])
+        && !isset($params['reply_to_message_id'])
+    );
+
+    if ($shouldUseProxy) {
+        $proxyResult = sendTelegramProxy(
+            $params['message_thread_id'] ?? null,
+            $params['text'],
+            $params['chat_id'] ?? SUPPORT_CHAT_ID
+        );
+
         if (!empty($proxyResult['error'])) {
             logMsg('TG PROXY ERROR [' . $method . ']: ' . $proxyResult['error'] . ' PARAMS=' . json_encode($params, JSON_UNESCAPED_UNICODE));
         } else {
             logMsg('TG PROXY RESPONSE [' . $method . ']: ' . (string)$proxyResult['response']);
         }
 
-        if (empty($proxyResult['error']) && $proxyResult['response'] !== false && $proxyResult['response'] !== null) {
-            return $proxyResult['response'];
+        $proxyDecoded = decodeTelegramProxyResponse($proxyResult['response'] ?? '');
+        if (
+            empty($proxyResult['error'])
+            && is_array($proxyDecoded)
+            && !empty($proxyDecoded['ok'])
+            && !empty($proxyDecoded['telegram_response']['ok'])
+        ) {
+            return json_encode($proxyDecoded['telegram_response'], JSON_UNESCAPED_UNICODE);
         }
     }
 
