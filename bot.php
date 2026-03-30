@@ -46,6 +46,11 @@ function logMsg($msg) {
     );
 }
 
+function logButtonEvent($scope, array $payload = [])
+{
+    logMsg('BTN_EVENT [' . $scope . '] ' . json_encode($payload, JSON_UNESCAPED_UNICODE));
+}
+
 
 // ==========================
 //  УТИЛИТЫ HTTP
@@ -2237,6 +2242,13 @@ function resolveMaxExternalUserIdByThread($threadId, array $message = [])
 
 function performManagerAction($action, $userId, $threadId, array $context = [])
 {
+    logButtonEvent('manager_action', [
+        'action'    => (string)$action,
+        'user_id'   => (int)$userId,
+        'thread_id' => (int)$threadId,
+        'has_phone' => !empty($context['phone']),
+    ]);
+
     $callbackId     = $context['callback_id']     ?? null;
     $replyToMessage = $context['reply_to_message'] ?? null;
     $phoneFromCtx   = $context['phone'] ?? null;
@@ -3034,6 +3046,15 @@ function handleManagerMessage($message) {
 
     $rawText = $message['text'] ?? '';
     $rawText = is_string($rawText) ? trim($rawText) : '';
+    logButtonEvent('manager_message', [
+        'thread_id'     => (int)$threadId,
+        'manager_id'    => (int)($from['id'] ?? 0),
+        'text'          => $rawText,
+        'has_photo'     => !empty($message['photo']),
+        'has_document'  => !empty($message['document']),
+        'user_id'       => (int)$userId,
+        'max_user_id'   => (int)($maxExternalUserId ?: 0),
+    ]);
 
     $hasPhoto    = !empty($message['photo']);
     $hasDocument = !empty($message['document']);
@@ -3044,6 +3065,11 @@ function handleManagerMessage($message) {
 
     // Команда менеджера на показ меню внутри треда
     if ($rawText !== '' && $trimmed === '//') {
+        logButtonEvent('manager_trigger_menu', [
+            'thread_id'   => (int)$threadId,
+            'manager_id'  => (int)($from['id'] ?? 0),
+            'user_id'     => (int)$userId,
+        ]);
         $sent = maybeSendManagerKeyboard($threadId, $userId, true);
 
         // Удаляем исходную команду, чтобы она не мешала в треде
@@ -3053,6 +3079,10 @@ function handleManagerMessage($message) {
         ]);
 
         if (!$sent) {
+            logButtonEvent('manager_trigger_menu_error', [
+                'thread_id' => (int)$threadId,
+                'reason'    => 'maybeSendManagerKeyboard returned false',
+            ]);
             tgRequest('sendMessage', [
                 'chat_id'           => SUPPORT_CHAT_ID,
                 'message_thread_id' => $threadId,
@@ -3298,11 +3328,21 @@ function handleCallbackQuery($callback) {
     $message = $callback['message'] ?? null;
 
     if (!$message || !$data) {
+        logButtonEvent('callback_invalid', [
+            'has_message' => (bool)$message,
+            'data'        => (string)$data,
+        ]);
         return;
     }
 
     $chat   = $message['chat'] ?? [];
     $chatId = (int)($chat['id'] ?? 0);
+    logButtonEvent('callback_received', [
+        'chat_id'     => $chatId,
+        'thread_id'   => (int)($message['message_thread_id'] ?? 0),
+        'from_id'     => (int)($callback['from']['id'] ?? 0),
+        'data'        => (string)$data,
+    ]);
 
     // ====== ВЕТКА 1. CALLBACK ИЗ ЛИЧКИ С ПОЛЬЗОВАТЕЛЕМ ======
     if ($chatId > 0) {
@@ -3410,6 +3450,11 @@ function handleCallbackQuery($callback) {
         }
 
         // другие callback’и из лички пока не используем
+        logButtonEvent('callback_private_ignored', [
+            'chat_id' => $chatId,
+            'from_id' => (int)($callback['from']['id'] ?? 0),
+            'data'    => (string)$data,
+        ]);
         return;
     }
 
@@ -3419,6 +3464,10 @@ function handleCallbackQuery($callback) {
         $existing = $targetUserId ? support_get_thread_by_user($targetUserId) : null;
 
         if ($existing && !empty($existing['thread_id'])) {
+            logButtonEvent('callback_start_thread_exists', [
+                'target_user_id' => (int)$targetUserId,
+                'thread_id'      => (int)$existing['thread_id'],
+            ]);
             if (!empty($callback['id'])) {
                 $threadLink = buildSupportThreadLink((int)$existing['thread_id']);
                 tgRequest('answerCallbackQuery', [
@@ -3456,6 +3505,10 @@ function handleCallbackQuery($callback) {
                 'show_alert'        => !$threadId,
             ]);
         }
+        logButtonEvent('callback_start_thread_result', [
+            'target_user_id' => (int)$targetUserId,
+            'thread_id'      => (int)$threadId,
+        ]);
 
         return;
     }
@@ -3467,6 +3520,10 @@ function handleCallbackQuery($callback) {
 
     $threadId = $message['message_thread_id'] ?? null;
     if (!$threadId) {
+        logButtonEvent('callback_support_no_thread', [
+            'chat_id' => $chatId,
+            'data'    => (string)$data,
+        ]);
         return;
     }
 
@@ -3493,6 +3550,10 @@ function handleCallbackQuery($callback) {
     $phone   = $context['phone'];
 
     if (!$userId) {
+        logButtonEvent('callback_support_no_user', [
+            'thread_id' => (int)$threadId,
+            'data'      => (string)$data,
+        ]);
         tgRequest('sendMessage', [
             'chat_id'           => SUPPORT_CHAT_ID,
             'message_thread_id' => $threadId,
@@ -4414,8 +4475,15 @@ if (strpos($text, '/start') === 0) {
             break;
 
         case 'Скачать приглашение':
+            logButtonEvent('client_menu_invite_click', [
+                'chat_id' => (int)$chatId,
+            ]);
             $phone = getUserPhone($chatId);
             if (!$phone) {
+                logButtonEvent('client_menu_invite_error', [
+                    'chat_id' => (int)$chatId,
+                    'reason'  => 'phone_not_found',
+                ]);
                 tgRequest('sendMessage', [
                     'chat_id'      => $chatId,
                     'text'         => 'Чтобы получить приглашение, сначала поделитесь номером телефона:',
@@ -4426,6 +4494,11 @@ if (strpos($text, '/start') === 0) {
 
             $invite = buildInvitationLink($phone);
             if (isset($invite['error'])) {
+                logButtonEvent('client_menu_invite_error', [
+                    'chat_id' => (int)$chatId,
+                    'reason'  => 'buildInvitationLink_error',
+                    'error'   => (string)$invite['error'],
+                ]);
                 tgRequest('sendMessage', [
                     'chat_id' => $chatId,
                     'text'    => 'Не удалось сформировать приглашение: ' . $invite['error'],
@@ -4458,8 +4531,17 @@ if (strpos($text, '/start') === 0) {
 
             if (!empty($resp['ok']) && !empty($resp['result']['message_id'])) {
                 log_bot_message($chatId, (int)$resp['result']['message_id'], $clientText, 'system');
+                logButtonEvent('client_menu_invite_sent', [
+                    'chat_id'     => (int)$chatId,
+                    'message_id'  => (int)$resp['result']['message_id'],
+                ]);
             } else {
                 $errorText = $resp['description'] ?? 'Не получилось отправить приглашение, попробуйте позже.';
+                logButtonEvent('client_menu_invite_error', [
+                    'chat_id' => (int)$chatId,
+                    'reason'  => 'sendMessage_error',
+                    'error'   => (string)$errorText,
+                ]);
                 tgRequest('sendMessage', [
                     'chat_id' => $chatId,
                     'text'    => 'Ошибка отправки приглашения: ' . $errorText,
