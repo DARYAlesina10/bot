@@ -9,7 +9,7 @@ $apiUrl = "https://api.telegram.org/bot{$token}/";
 $telegramProxyUrl = 'http://l138267.hostde33.fornex.host/telegram_proxy.php';
 
 // URL Mini App (index.html с ЛК)
-$miniAppUrl = 'https://pandoroom.tech/telegramm/index.html'; // поменяй при необходимости
+$miniAppUrl = 'https://tgbotum145.ru/telegramm/index.html'; // поменяй при необходимости
 
 // ID менеджеров (chat_id в Telegram) – сейчас используются только для отдельных уведомлений
 $managers = [
