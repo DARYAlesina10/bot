@@ -2098,9 +2098,9 @@ function mapManagerActionByText($text)
     return $map[$text] ?? null;
 }
 
-function sendRulesInfoToThread($threadId, $replyToMessage = null)
+function getRulesInfoParts()
 {
-    $parts = [
+    return [
         "Обращаем Ваше внимание на самые важные правила, направляем для ознакомления\n\n"
         . "1. Стандартная команда на любом квесте 2-4 человека, входящая в стоимость, указанную на сайте. Дополнительные участники: 5-ый и 6-ой игроки оплачиваются дополнительно по 1000 рублей за каждого. Все квесты имеют возрастное ограничение 14+ и 16+, детям, не достигшим возраста прохождения, требуется сопровождение либо совершеннолетнего взрослого в составе команды до 6-ти игроков, либо нашего сотрудника – Аниматора, который может пойти 7-ым и доплачивается - 2000 на квест.\n\n"
         . "2. Стандартная команда на батальную игру Лазертаг  2-4 человека, все последующие игроки ,начиная с  5-го, доплачиваются по 1000 рублей за каждого, максимальная вместимость – 14 детей.\n\n"
@@ -2114,6 +2114,11 @@ function sendRulesInfoToThread($threadId, $replyToMessage = null)
         "8. Запрещается использовать пиротехнику, хлопушки, бенгальские огни, свечи фонтан/фейерверк (римская свеча) как в РЦ, так и на территории близлежащей к нему.\n\n"
         . "9. Заказчик вправе организовать фотозону или шоу-программу самостоятельно при предварительном согласовании с Администрацией РЦ. За собственную программу, пиньяту, аниматора или ведущего взимается сбор, сумма которого указана в меню шоу-программ РЦ. В программе проведения шоу и выступления аниматоров не может быть пересечений и наложений, поэтому, пожалуйста, уточняйте заранее о свободном времени для шоу/аниматоров. При заказе услуги фотографа/шоу/аниматоров отмена заказа без удержания стоимости может осуществляться не менее чем за три дня до мероприятия, при отмене позже с заказчика удерживается 50% стоимости услуги",
     ];
+}
+
+function sendRulesInfoToThread($threadId, $replyToMessage = null)
+{
+    $parts = getRulesInfoParts();
 
     foreach ($parts as $index => $part) {
         $params = [
@@ -2129,6 +2134,26 @@ function sendRulesInfoToThread($threadId, $replyToMessage = null)
 
         tgRequest('sendMessage', $params);
     }
+}
+
+function sendRulesInfoToUser($userId)
+{
+    $parts = getRulesInfoParts();
+    foreach ($parts as $part) {
+        $respJson = tgRequest('sendMessage', [
+            'chat_id' => $userId,
+            'text'    => $part,
+        ]);
+        $resp = $respJson ? json_decode($respJson, true) : null;
+        if (!is_array($resp) || empty($resp['ok'])) {
+            return [
+                'ok' => false,
+                'description' => is_array($resp) ? ($resp['description'] ?? 'unknown error') : 'invalid response',
+            ];
+        }
+    }
+
+    return ['ok' => true];
 }
 
 function sendMessageToMaxUser($maxUserId, $text, array $attachments = [])
@@ -2256,7 +2281,35 @@ function performManagerAction($action, $userId, $threadId, array $context = [])
 
     switch ($action) {
         case 'rules_info':
-            sendRulesInfoToThread($threadId, $replyToMessage);
+            if (!$userId) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не удалось отправить правила клиенту: не найден user_id.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+                break;
+            }
+
+            $rulesResp = sendRulesInfoToUser($userId);
+            if (empty($rulesResp['ok'])) {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Не удалось отправить правила клиенту в личку: ' . ($rulesResp['description'] ?? 'unknown error'),
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+            } else {
+                tgRequest('sendMessage', [
+                    'chat_id'           => SUPPORT_CHAT_ID,
+                    'message_thread_id' => $threadId,
+                    'text'              => 'Правила отправлены клиенту в личные сообщения.',
+                    'reply_to_message_id' => $replyToMessage,
+                    'allow_sending_without_reply' => true,
+                ]);
+            }
             break;
 
         case 'client_close':
