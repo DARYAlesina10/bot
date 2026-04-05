@@ -11,14 +11,14 @@
   const root = document.createElement("div");
   root.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:99999;font-family:Arial,sans-serif;";
   root.innerHTML = `
-    <button id="pr-chat-toggle" style="background:#ff4f7a;color:#fff;border:none;border-radius:999px;padding:12px 16px;cursor:pointer;">💬 Онлайн-чат</button>
-    <div id="pr-chat-box" style="display:none;width:320px;height:420px;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);margin-top:10px;overflow:hidden;">
-      <div style="padding:10px;background:#ff4f7a;color:#fff;font-weight:700;">Оператор Pandoroom</div>
-      <div id="pr-chat-messages" style="height:300px;overflow:auto;padding:10px;background:#fafafa;"></div>
-      <div style="padding:10px;border-top:1px solid #eee;">
-        <input id="pr-chat-name" placeholder="Ваше имя" style="width:100%;margin-bottom:8px;padding:8px;" />
-        <textarea id="pr-chat-input" rows="2" placeholder="Введите сообщение..." style="width:100%;padding:8px;"></textarea>
-        <button id="pr-chat-send" style="margin-top:8px;background:#ff4f7a;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;">Отправить</button>
+    <button id="pr-chat-toggle" style="background-image:linear-gradient(94.13deg, #ff7f01 46.63%, #edd408 74.71%, #ff7f01 100%);color:#fff;border:none;border-radius:999px;padding:12px 16px;cursor:pointer;">💬 Онлайн-чат</button>
+    <div id="pr-chat-box" style="display:none;width:320px;height:380px;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);margin-top:10px;overflow:hidden;">
+      <div style="padding:10px;background-image:linear-gradient(94.13deg, #ff7f01 46.63%, #edd408 74.71%, #ff7f01 100%);color:#fff;font-weight:700;">Оператор Pandoroom</div>
+      <div id="pr-chat-messages" style="height:230px;overflow:auto;padding:8px;background:#fafafa;"></div>
+      <div style="padding:8px;border-top:1px solid #eee;">
+        <input id="pr-chat-name" placeholder="Ваше имя" style="width:100%;margin-bottom:6px;padding:7px;" />
+        <textarea id="pr-chat-input" rows="2" placeholder="Введите сообщение..." style="width:100%;padding:7px;"></textarea>
+        <button id="pr-chat-send" style="margin-top:6px;background-image:linear-gradient(94.13deg, #ff7f01 46.63%, #edd408 74.71%, #ff7f01 100%);color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;">Отправить</button>
       </div>
     </div>
   `;
