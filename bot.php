@@ -2264,6 +2264,89 @@ function resolveMaxExternalUserIdByThread($threadId, array $message = [])
     return null;
 }
 
+function extractWebSessionIdFromText($text)
+{
+    if (!is_string($text) || $text === '') {
+        return null;
+    }
+
+    if (preg_match('/\[ext:\s*web_([a-zA-Z0-9_\-]+)\]/iu', $text, $m)) {
+        return (string)$m[1];
+    }
+
+    if (preg_match('/external\s*id\s*:?\s*web_([a-zA-Z0-9_\-]+)/iu', $text, $m)) {
+        return (string)$m[1];
+    }
+
+    return null;
+}
+
+function resolveWebSessionIdByThread($threadId, array $message = [])
+{
+    $row = support_get_thread_by_thread_id($threadId);
+    $stored = is_array($row) ? ($row['ext_web_session_id'] ?? null) : null;
+    if (is_string($stored) && $stored !== '') {
+        return $stored;
+    }
+
+    $candidates = [
+        $message['forum_topic_created']['name'] ?? null,
+        $message['forum_topic_edited']['name'] ?? null,
+        $message['reply_to_message']['forum_topic_created']['name'] ?? null,
+        $message['reply_to_message']['forum_topic_edited']['name'] ?? null,
+        $message['reply_to_message']['text'] ?? null,
+        $message['text'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $sessionId = extractWebSessionIdFromText($candidate);
+        if ($sessionId) {
+            support_update_thread_by_thread_id($threadId, ['ext_web_session_id' => $sessionId]);
+            logMsg('Resolved WEB session by thread title/payload thread=' . (int)$threadId . ' web_session=' . $sessionId);
+            return $sessionId;
+        }
+    }
+
+    return null;
+}
+
+function sendMessageToWebChatSession($sessionId, $text)
+{
+    $baseDir = __DIR__ . '/webchat_data';
+    $messagesDir = $baseDir . '/messages';
+    if (!is_dir($messagesDir) && !@mkdir($messagesDir, 0777, true) && !is_dir($messagesDir)) {
+        return ['ok' => false, 'description' => 'cannot create webchat_data/messages'];
+    }
+
+    $safeSessionId = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$sessionId);
+    if ($safeSessionId === '') {
+        return ['ok' => false, 'description' => 'bad session id'];
+    }
+
+    $file = $messagesDir . '/' . $safeSessionId . '.json';
+    $history = [];
+    if (file_exists($file)) {
+        $loaded = json_decode((string)file_get_contents($file), true);
+        if (is_array($loaded)) {
+            $history = $loaded;
+        }
+    }
+
+    $history[] = [
+        'id' => (int)(microtime(true) * 1000),
+        'direction' => 'operator',
+        'text' => (string)$text,
+        'created_at' => time(),
+    ];
+
+    $ok = file_put_contents($file, json_encode($history, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    if ($ok === false) {
+        return ['ok' => false, 'description' => 'cannot write webchat history'];
+    }
+
+    return ['ok' => true];
+}
+
 
 function performManagerAction($action, $userId, $threadId, array $context = [])
 {
@@ -3087,6 +3170,7 @@ function handleManagerMessage($message) {
     $userId       = $context['user_id'];
     $phone        = $context['phone'];
     $maxExternalUserId = resolveMaxExternalUserIdByThread($threadId, $message);
+    $webSessionId = resolveWebSessionIdByThread($threadId, $message);
 
     $from        = $message['from'] ?? [];
     $managerName = trim(
@@ -3107,6 +3191,7 @@ function handleManagerMessage($message) {
         'has_document'  => !empty($message['document']),
         'user_id'       => (int)$userId,
         'max_user_id'   => (int)($maxExternalUserId ?: 0),
+        'web_session'   => (string)($webSessionId ?: ''),
     ]);
 
     $hasPhoto    = !empty($message['photo']);
@@ -3211,7 +3296,7 @@ function handleManagerMessage($message) {
         return;
     }
 
-    if (!$userId && !$maxExternalUserId) {
+    if (!$userId && !$maxExternalUserId && !$webSessionId) {
         logMsg('Manager reply dropped: no tg user and no ext max id for thread=' . (int)$threadId . ' update=' . json_encode($message, JSON_UNESCAPED_UNICODE));
         tgRequest('sendMessage', [
             'chat_id'           => SUPPORT_CHAT_ID,
@@ -3252,6 +3337,30 @@ function handleManagerMessage($message) {
                 'chat_id'           => SUPPORT_CHAT_ID,
                 'message_thread_id' => $threadId,
                 'text'              => 'Не удалось отправить сообщение в MAX: ' . ($maxResp['description'] ?? 'unknown error'),
+                'reply_to_message_id' => $message['message_id'] ?? null,
+                'allow_sending_without_reply' => true,
+            ]);
+        }
+        return;
+    }
+
+    // WEB-widget-only тред (без Telegram user_id), но с маркером [ext: web_xxx]
+    if (!$userId && $webSessionId) {
+        if ($hasPhoto) {
+            $textForWeb = "💬 Оператор:\n" . ($caption !== '' ? $caption : '[фото от менеджера]');
+        } elseif ($hasDocument) {
+            $textForWeb = "💬 Оператор:\n" . ($caption !== '' ? $caption : '[документ от менеджера]');
+        } else {
+            $textForWeb = "💬 Оператор:\n" . $rawText;
+        }
+
+        logMsg('WEB direct reply from manager thread=' . (int)$threadId . ' web_session=' . $webSessionId);
+        $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb);
+        if (empty($webResp['ok'])) {
+            tgRequest('sendMessage', [
+                'chat_id'           => SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'text'              => 'Не удалось отправить сообщение в live-чат сайта: ' . ($webResp['description'] ?? 'unknown error'),
                 'reply_to_message_id' => $message['message_id'] ?? null,
                 'allow_sending_without_reply' => true,
             ]);
