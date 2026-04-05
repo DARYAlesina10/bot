@@ -4,9 +4,11 @@
 
   const API_URL = (window.PANDOROOM_CHAT_API || "https://tgbotum145.ru/telegramm/webchat_api.php").replace(/\/+$/, "");
   const STORAGE_KEY = "pandoroom_live_chat_session";
+  const NAME_HIDDEN_KEY = "pandoroom_live_chat_name_hidden";
 
   let sessionId = localStorage.getItem(STORAGE_KEY) || "";
   let lastId = 0;
+  let nameHidden = localStorage.getItem(NAME_HIDDEN_KEY) === "1";
 
   const root = document.createElement("div");
   root.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:99999;font-family:Arial,sans-serif;";
@@ -30,6 +32,17 @@
   const $input = root.querySelector("#pr-chat-input");
   const $name = root.querySelector("#pr-chat-name");
   const $send = root.querySelector("#pr-chat-send");
+
+  function applyNameVisibility() {
+    if (nameHidden) {
+      $name.style.display = "none";
+      $messages.style.height = "260px";
+    } else {
+      $name.style.display = "block";
+      $messages.style.height = "230px";
+    }
+  }
+  applyNameVisibility();
 
   function addMsg(text, mine) {
     const div = document.createElement("div");
@@ -63,6 +76,11 @@
 
     addMsg(text, true);
     $input.value = "";
+    if (!nameHidden) {
+      nameHidden = true;
+      localStorage.setItem(NAME_HIDDEN_KEY, "1");
+      applyNameVisibility();
+    }
     const payload = new URLSearchParams({
       action: "send",
       session_id: sid,
