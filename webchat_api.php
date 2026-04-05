@@ -1,6 +1,27 @@
 <?php
 
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = [
+    'https://pandoroom.org',
+    'https://www.pandoroom.org',
+    'https://tgbotum145.ru',
+    'https://www.tgbotum145.ru',
+];
+if ($origin && in_array($origin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+} else {
+    // fallback, чтобы виджет мог работать при нестандартном домене сайта
+    header('Access-Control-Allow-Origin: *');
+}
+header('Vary: Origin');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, X-Requested-With');
 header('Content-Type: application/json; charset=utf-8');
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 date_default_timezone_set('UTC');
 
