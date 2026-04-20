@@ -2135,7 +2135,7 @@ if (btnQuest) {
   }
 
   // ==================== BOOKING MASTER ====================
-  const API_BOT_URL = 'https://pandoroom.tech/telegramm/bot.php';
+  const API_BOT_URL = (window.PANDOROOM_BOT_API || new URL('bot.php', window.location.href).toString());
 
   const bookingState = {
   name: '',
