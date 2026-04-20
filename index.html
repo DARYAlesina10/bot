@@ -791,6 +791,30 @@
 
     .app { max-width: 390px; }
 
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding: 0 2px;
+    }
+
+    .top-title h1 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.12;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .top-title p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: #f4f4f4;
+      opacity: .9;
+      font-weight: 500;
+    }
+
     .app-title,
     .app-subtitle,
     .section-title,
@@ -816,6 +840,31 @@
       border-radius: 14px;
       box-shadow: 0 10px 24px rgba(139,184,0,.24);
     }
+    .hero {
+      padding: 12px 12px 11px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .hero-name {
+      font-size: 14px;
+      line-height: 1.1;
+      font-weight: 700;
+      margin: 0 0 4px;
+      color: #151515;
+    }
+
+    .hero-phone,
+    .hero-bonus {
+      font-size: 10px;
+      line-height: 1.25;
+      color: rgba(0,0,0,.72);
+      font-weight: 600;
+      margin: 0;
+    }
 
     .user-phone,
     .user-bonus,
@@ -826,6 +875,62 @@
       border: none;
       color: #141414;
       backdrop-filter: blur(6px);
+      min-width: 106px;
+      border-radius: 10px;
+      padding: 9px 10px;
+    }
+
+    .hero-right strong {
+      display: block;
+      font-size: 13px;
+      line-height: 1.15;
+      font-weight: 800;
+      color: rgba(0,0,0,.82);
+    }
+
+    .hero-dots {
+      display: flex;
+      gap: 4px;
+      margin-top: 5px;
+    }
+
+    .hero-dots .passport-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      box-shadow: none;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.018));
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 12px;
+      min-height: 58px;
+      padding: 9px 9px 8px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.28);
+    }
+
+    .stat span {
+      display: block;
+      color: #8d8d8d;
+      font-size: 9px;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1;
+      font-weight: 800;
     }
 
     .tabs {
@@ -902,35 +1007,44 @@
 </head>
 <body>
 <div class="app">
-  <header class="app-header">
-    <div class="avatar" id="avatar-initials">P</div>
-    <div class="app-title-block">
-      <div class="app-title">Личный кабинет Pandoroom</div>
-      <div class="app-subtitle">Ваши квесты, бонусы, подарки и праздники</div>
+  <header class="top app-header">
+    <div class="avatar" id="avatar-initials"></div>
+    <div class="top-title app-title-block">
+      <h1>Личный кабинет</h1>
+      <p>Pandoroom</p>
     </div>
-    <div class="pill">Beta</div>
   </header>
 
-  <div class="top-widget">
+  <div class="top-widget hero">
     <div class="user-info-main">
-      <div class="user-name" id="user-name">Гость Pandoroom</div>
-      <div class="user-phone" id="user-phone">Телефон не указан</div>
-      <div class="user-bonus" id="user-bonus">Бонусы: <strong>—</strong></div>
+      <div class="user-name hero-name" id="user-name">Гость Pandoroom</div>
+      <div class="user-phone hero-phone" id="user-phone">Телефон не указан</div>
+      <div class="user-bonus hero-bonus" id="user-bonus">Бонусы: <strong>—</strong></div>
     </div>
-    <div class="passport-mini">
-      <div class="small">Паспорт игрока</div>
-      <div class="small" id="passport-mini-label">Уровень: — / 12</div>
-      <div class="passport-steps-mini" id="passport-mini-steps"></div>
+    <div class="passport-mini hero-right">
+      <small>Паспорт игрока</small>
+      <strong id="passport-mini-label">Уровень — / 12</strong>
+      <div class="passport-steps-mini hero-dots" id="passport-mini-steps"></div>
     </div>
   </div>
 
-  <!-- БЛОК СТАТИСТИКИ УБРАН -->
+  <section>
+    <h2 class="section-title">Ваша статистика</h2>
+    <div class="stats-grid">
+      <div class="stat"><span>Бонусы</span><strong>—</strong></div>
+      <div class="stat"><span>Уровень паспорта</span><strong>—</strong></div>
+      <div class="stat"><span>Активных подарков</span><strong>—</strong></div>
+      <div class="stat"><span>Предстоящих квестов</span><strong>—</strong></div>
+      <div class="stat"><span>Пройдено квестов</span><strong>—</strong></div>
+      <div class="stat"><span>Прошедших квестов</span><strong>—</strong></div>
+    </div>
+  </section>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="quests">Квесты</button>
-    <button class="tab-btn" data-tab="party">Праздник</button>
-    <button class="tab-btn" data-tab="gifts">Подарки</button>
-    <button class="tab-btn" data-tab="passport">Паспорт</button>
+    <button class="tab tab-btn active" data-tab="quests">Квесты</button>
+    <button class="tab tab-btn" data-tab="party">Праздники</button>
+    <button class="tab tab-btn" data-tab="gifts">Подарки</button>
+    <button class="tab tab-btn" data-tab="passport">Паспорт</button>
   </div>
 
   <!-- КВЕСТЫ -->
