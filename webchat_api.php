@@ -150,6 +150,23 @@ function wcAppendImageMessage($sessionId, $direction, $imageUrl, $caption = '')
     return end($messages);
 }
 
+function wcAppendDocumentMessage($sessionId, $direction, $fileUrl, $caption = '', $fileName = '')
+{
+    $file = wcSessionFile($sessionId);
+    $messages = wcReadJson($file, []);
+    $messages[] = [
+        'id' => (int)(microtime(true) * 1000),
+        'direction' => $direction,
+        'type' => 'document',
+        'text' => (string)$caption,
+        'file_url' => (string)$fileUrl,
+        'file_name' => (string)$fileName,
+        'created_at' => time(),
+    ];
+    wcWriteJson($file, $messages);
+    return end($messages);
+}
+
 function wcBuildPublicBaseUrl()
 {
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -189,9 +206,10 @@ if ($action === 'send') {
     $sessionId = (string)($_POST['session_id'] ?? $_GET['session_id'] ?? '');
     $text = trim((string)($_POST['text'] ?? $_GET['text'] ?? ''));
     $name = trim((string)($_POST['name'] ?? $_GET['name'] ?? 'Гость сайта'));
-    $hasImage = !empty($_FILES['image']['tmp_name']);
-    if ($sessionId === '' || ($text === '' && !$hasImage)) {
-        echo json_encode(['ok' => false, 'error' => 'session_id and text or image are required'], JSON_UNESCAPED_UNICODE);
+    $upload = $_FILES['file'] ?? ($_FILES['image'] ?? null);
+    $hasFile = !empty($upload['tmp_name']);
+    if ($sessionId === '' || ($text === '' && !$hasFile)) {
+        echo json_encode(['ok' => false, 'error' => 'session_id and text or file are required'], JSON_UNESCAPED_UNICODE);
         exit;
     }
     $threadId = wcEnsureThread($sessionId, $name);
@@ -201,9 +219,12 @@ if ($action === 'send') {
     }
     $send = null;
 
-    if ($hasImage) {
-        $tmp = $_FILES['image']['tmp_name'];
-        $ext = strtolower(pathinfo((string)($_FILES['image']['name'] ?? 'img.jpg'), PATHINFO_EXTENSION));
+    if ($hasFile) {
+        $tmp = $upload['tmp_name'];
+        $originalName = (string)($upload['name'] ?? 'file');
+        $mime = (string)($upload['type'] ?? '');
+        $isImage = stripos($mime, 'image/') === 0;
+        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
         if ($ext === '') $ext = 'jpg';
         $fileName = preg_replace('/[^a-zA-Z0-9_\-]/', '', $sessionId) . '_' . time() . '.' . $ext;
         $target = WEBCHAT_UPLOADS_DIR . '/' . $fileName;
@@ -212,15 +233,24 @@ if ($action === 'send') {
             exit;
         }
 
-        $imageUrl = wcBuildPublicBaseUrl() . '/webchat_data/uploads/' . $fileName;
-        wcAppendImageMessage($sessionId, 'visitor', $imageUrl, $text);
-
-        $send = wcTelegramRequest('sendPhoto', [
-            'chat_id' => WEBCHAT_SUPPORT_CHAT_ID,
-            'message_thread_id' => $threadId,
-            'photo' => $imageUrl,
-            'caption' => "🌐 Фото из live-чата\nSession: web_{$sessionId}\nИмя: {$name}" . ($text !== '' ? "\n\n{$text}" : ''),
-        ]);
+        $publicUrl = wcBuildPublicBaseUrl() . '/webchat_data/uploads/' . $fileName;
+        if ($isImage) {
+            wcAppendImageMessage($sessionId, 'visitor', $publicUrl, $text);
+            $send = wcTelegramRequest('sendPhoto', [
+                'chat_id' => WEBCHAT_SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'photo' => $publicUrl,
+                'caption' => "🌐 Фото из live-чата\nSession: web_{$sessionId}\nИмя: {$name}" . ($text !== '' ? "\n\n{$text}" : ''),
+            ]);
+        } else {
+            wcAppendDocumentMessage($sessionId, 'visitor', $publicUrl, $text, $originalName);
+            $send = wcTelegramRequest('sendDocument', [
+                'chat_id' => WEBCHAT_SUPPORT_CHAT_ID,
+                'message_thread_id' => $threadId,
+                'document' => $publicUrl,
+                'caption' => "🌐 Документ из live-чата\nSession: web_{$sessionId}\nИмя: {$name}\nФайл: {$originalName}" . ($text !== '' ? "\n\n{$text}" : ''),
+            ]);
+        }
     } else {
         wcAppendMessage($sessionId, 'visitor', $text);
         $send = wcTelegramRequest('sendMessage', [

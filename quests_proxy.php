@@ -13,32 +13,55 @@ if (!$phone) {
     exit;
 }
 
-// Запрос на pandoroom.org как в bot.php
-$ch = curl_init('https://pandoroom.org/pandoroom-api/quests.php?phone=' . urlencode($phone));
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_SSL_VERIFYHOST => 2,
-    CURLOPT_CONNECTTIMEOUT => 5,
-    CURLOPT_TIMEOUT        => 5,
-]);
+// Запрос с приоритетом старого API домена (pandoroom.tech), затем fallback.
+$res = null;
+$lastCurlError = '';
+foreach ([
+    'https://pandoroom.tech/pandoroom-api/quests.php',
+    'https://pandoroom.org/pandoroom-api/quests.php',
+    'https://tgbotum145.ru/pandoroom-api/quests.php',
+] as $baseUrl) {
+    $ch = curl_init($baseUrl . '?phone=' . urlencode($phone));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 2,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT        => 5,
+    ]);
 
-$res = curl_exec($ch);
-if ($res === false) {
-    $err = curl_error($ch);
+    $candidate = curl_exec($ch);
+    if ($candidate === false) {
+        $lastCurlError = curl_error($ch);
+        curl_close($ch);
+        continue;
+    }
     curl_close($ch);
-    echo json_encode(['error' => 'curl error: ' . $err]);
+
+    if (!is_string($candidate) || trim($candidate) === '') {
+        continue;
+    }
+
+    if (stripos($candidate, '<html') !== false) {
+        continue;
+    }
+
+    $decoded = json_decode($candidate, true);
+    if (!is_array($decoded)) {
+        continue;
+    }
+
+    $res = $candidate;
+    break;
+}
+
+if (!is_string($res) || $res === '') {
+    echo json_encode(['error' => 'curl error: ' . ($lastCurlError ?: 'empty response from quests api')]);
     exit;
 }
-curl_close($ch);
 
 // Если вдруг вернули HTML — покажем понятную ошибку
-if (stripos($res, '<html') !== false) {
-    echo json_encode(['error' => 'Сервер вернул HTML вместо JSON']);
-    exit;
-}
-
 // Просто пробрасываем оригинальный JSON дальше
 echo $res;

@@ -33,6 +33,7 @@ $botMessagesFile = __DIR__ . '/bot_messages.json';
 
 // Базовые URL API (основной + fallback после переезда)
 $orgApiBases = [
+    'https://pandoroom.tech/pandoroom-api/',
     'https://pandoroom.org/pandoroom-api/',
     'https://tgbotum145.ru/pandoroom-api/',
 ];
@@ -2374,6 +2375,8 @@ function sendMessageToWebChatSession($sessionId, $text, array $extra = [])
         'type' => (string)($extra['type'] ?? 'text'),
         'text' => (string)$text,
         'image_url' => (string)($extra['image_url'] ?? ''),
+        'file_url' => (string)($extra['file_url'] ?? ''),
+        'file_name' => (string)($extra['file_name'] ?? ''),
         'created_at' => time(),
     ];
 
@@ -3394,8 +3397,16 @@ function handleManagerMessage($message) {
                 'image_url' => $photoUrl ?: '',
             ]);
         } elseif ($hasDocument) {
+            $doc = $message['document'];
+            $fileId = $doc['file_id'] ?? null;
+            $docUrl = tgGetFileUrlById($fileId);
+            $docName = $doc['file_name'] ?? 'document';
             $textForWeb = "💬 Оператор:\n" . ($caption !== '' ? $caption : '[документ от менеджера]');
-            $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb);
+            $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb, [
+                'type' => 'document',
+                'file_url' => $docUrl ?: '',
+                'file_name' => $docName,
+            ]);
         } else {
             $textForWeb = "💬 Оператор:\n" . $rawText;
             $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb);
