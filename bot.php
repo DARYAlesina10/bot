@@ -1163,43 +1163,60 @@ function getIikoCategoriesByPhone($phone) {
 function getEventInfoByPhone($phone) {
     if (!$phone) return null;
 
-    $normalizedPhone = preg_replace('/\D+/', '', (string)$phone);
-    if ($normalizedPhone === '') {
-        $normalizedPhone = (string)$phone;
+    $phoneRaw = trim((string)$phone);
+    $digits = preg_replace('/\D+/', '', $phoneRaw);
+    $phoneCandidates = [];
+
+    if ($digits !== '') {
+        $phoneCandidates[] = $digits;
+        if (strlen($digits) === 11 && ($digits[0] === '7' || $digits[0] === '8')) {
+            $phoneCandidates[] = substr($digits, 1); // часто API ждёт локальный 10-значный номер
+        }
     }
+    $phoneCandidates[] = $phoneRaw;
+    $phoneCandidates = array_values(array_unique(array_filter($phoneCandidates, static function ($v) {
+        return is_string($v) && $v !== '';
+    })));
 
-    $payload = json_encode(['da' => $normalizedPhone], JSON_UNESCAPED_UNICODE);
-
-    $res = null;
-    foreach ([
+    $endpoints = [
         'https://pandoroom.tech/drobmen.php',
         'https://tgbotum145.ru/drobmen.php',
-    ] as $drobmenUrl) {
-        $res = httpRequest(
-            $drobmenUrl,
-            $payload,
-            ['Content-Type: application/json'],
-            3
-        );
-        if (is_string($res) && $res !== '') {
-            break;
+    ];
+
+    $data = null;
+    $lastResponseForLog = '';
+
+    foreach ($phoneCandidates as $phoneCandidate) {
+        $payload = json_encode(['da' => $phoneCandidate], JSON_UNESCAPED_UNICODE);
+        foreach ($endpoints as $drobmenUrl) {
+            $res = httpRequest(
+                $drobmenUrl,
+                $payload,
+                ['Content-Type: application/json'],
+                4
+            );
+            if (!is_string($res) || $res === '') {
+                continue;
+            }
+
+            $lastResponseForLog = $res;
+
+            // Если вдруг вернуло HTML — значит ошибка/редирект
+            if (stripos($res, '<html') !== false) {
+                logMsg('DROBMEN HTML ERROR: phone=' . $phoneCandidate . ' URL=' . $drobmenUrl . ' RESP=' . substr($res, 0, 200));
+                continue;
+            }
+
+            $decoded = json_decode($res, true);
+            if (is_array($decoded) && !empty($decoded['datas'])) {
+                $data = $decoded;
+                break 2;
+            }
         }
     }
 
-    if (!is_string($res) || $res === '') {
-        logMsg('DROBMEN EMPTY OR ERROR');
-        return null;
-    }
-
-    // Если вдруг вернуло HTML — значит ошибка/редирект
-    if (stripos($res, '<html') !== false) {
-        logMsg('DROBMEN HTML ERROR: ' . substr($res, 0, 200));
-        return null;
-    }
-
-    $data = json_decode($res, true);
     if (!$data || empty($data['datas'])) {
-        logMsg('DROBMEN JSON DECODE OR EMPTY: ' . $res);
+        logMsg('DROBMEN JSON DECODE OR EMPTY. phone=' . $phoneRaw . ' tried=' . json_encode($phoneCandidates, JSON_UNESCAPED_UNICODE) . ' RESP=' . substr((string)$lastResponseForLog, 0, 300));
         return null;
     }
 
