@@ -83,10 +83,11 @@
   function playIncomingSound() {
     try {
       if ("speechSynthesis" in window && typeof window.SpeechSynthesisUtterance !== "undefined") {
-        const utterance = new SpeechSynthesisUtterance("Новое сообщение от Пандорум");
+        const utterance = new SpeechSynthesisUtterance("У вас новое сообщение от ПандОрум");
         utterance.lang = "ru-RU";
-        utterance.rate = 1;
-        utterance.pitch = 1;
+        utterance.rate = 0.94;
+        utterance.pitch = 0.96;
+        utterance.volume = 1;
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utterance);
         return;
