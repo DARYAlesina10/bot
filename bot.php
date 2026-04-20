@@ -31,8 +31,11 @@ $messageLinksFile = __DIR__ . '/message_links.json';
 // Файл для хранения исходящих сообщений бота клиенту
 $botMessagesFile = __DIR__ . '/bot_messages.json';
 
-// Базовый URL API на pandoroom.org
-$orgApiBase = 'https://pandoroom.org/pandoroom-api/';
+// Базовые URL API (основной + fallback после переезда)
+$orgApiBases = [
+    'https://pandoroom.org/pandoroom-api/',
+    'https://tgbotum145.ru/pandoroom-api/',
+];
 
 
 // ==========================
@@ -180,6 +183,23 @@ function tgRequest($method, array $params = []) {
     curl_close($ch);
 
     return $response;
+}
+
+function tgGetFileUrlById($fileId)
+{
+    global $token;
+
+    if (!$fileId) {
+        return null;
+    }
+
+    $respJson = tgRequest('getFile', ['file_id' => $fileId]);
+    $resp = $respJson ? json_decode($respJson, true) : null;
+    if (!is_array($resp) || empty($resp['ok']) || empty($resp['result']['file_path'])) {
+        return null;
+    }
+
+    return 'https://api.telegram.org/file/bot' . $token . '/' . $resp['result']['file_path'];
 }
 
 // Локальное хранилище исходящих сообщений бота клиенту
@@ -1010,24 +1030,31 @@ function mapReplyToUser($userId, $adminMessageId) {
 // ==========================
 
 function callPandoroomOrgApi($endpoint, $params = []) {
-    global $orgApiBase;
+    global $orgApiBases;
 
-    $url = rtrim($orgApiBase, '/') . '/' . ltrim($endpoint, '/');
-    if (!empty($params)) {
-        $url .= '?' . http_build_query($params);
+    $bases = is_array($orgApiBases) ? $orgApiBases : [];
+    foreach ($bases as $base) {
+        $url = rtrim($base, '/') . '/' . ltrim($endpoint, '/');
+        if (!empty($params)) {
+            $url .= '?' . http_build_query($params);
+        }
+
+        $res = httpRequest($url);
+        if (!is_string($res)) {
+            logMsg('ORG API EMPTY/ERROR: ' . $url);
+            continue;
+        }
+
+        $data = json_decode($res, true);
+        if ($data === null) {
+            logMsg('ORG API JSON ERROR: ' . $url . ' RESP=' . $res);
+            continue;
+        }
+
+        return $data;
     }
 
-    $res = httpRequest($url);
-    if (!is_string($res)) {
-        return null;
-    }
-
-    $data = json_decode($res, true);
-    if ($data === null) {
-        logMsg('ORG API JSON ERROR: ' . $res);
-    }
-
-    return $data;
+    return null;
 }
 
 // Привязка chat_id к пользователю на pandoroom.org
@@ -1091,12 +1118,21 @@ function getEventInfoByPhone($phone) {
 
     $payload = json_encode(['da' => (string)$phone], JSON_UNESCAPED_UNICODE);
 
-    $res = httpRequest(
+    $res = null;
+    foreach ([
         'https://pandoroom.tech/drobmen.php',
-        $payload,
-        ['Content-Type: application/json'],
-        3
-    );
+        'https://tgbotum145.ru/drobmen.php',
+    ] as $drobmenUrl) {
+        $res = httpRequest(
+            $drobmenUrl,
+            $payload,
+            ['Content-Type: application/json'],
+            3
+        );
+        if (is_string($res) && $res !== '') {
+            break;
+        }
+    }
 
     if (!is_string($res) || $res === '') {
         logMsg('DROBMEN EMPTY OR ERROR');
@@ -2310,7 +2346,7 @@ function resolveWebSessionIdByThread($threadId, array $message = [])
     return null;
 }
 
-function sendMessageToWebChatSession($sessionId, $text)
+function sendMessageToWebChatSession($sessionId, $text, array $extra = [])
 {
     $baseDir = __DIR__ . '/webchat_data';
     $messagesDir = $baseDir . '/messages';
@@ -2335,7 +2371,9 @@ function sendMessageToWebChatSession($sessionId, $text)
     $history[] = [
         'id' => (int)(microtime(true) * 1000),
         'direction' => 'operator',
+        'type' => (string)($extra['type'] ?? 'text'),
         'text' => (string)$text,
+        'image_url' => (string)($extra['image_url'] ?? ''),
         'created_at' => time(),
     ];
 
@@ -3347,15 +3385,23 @@ function handleManagerMessage($message) {
     // WEB-widget-only тред (без Telegram user_id), но с маркером [ext: web_xxx]
     if (!$userId && $webSessionId) {
         if ($hasPhoto) {
-            $textForWeb = "💬 Оператор:\n" . ($caption !== '' ? $caption : '[фото от менеджера]');
+            $photo = end($message['photo']);
+            $fileId = $photo['file_id'] ?? null;
+            $photoUrl = tgGetFileUrlById($fileId);
+            $textForWeb = $caption !== '' ? $caption : '[фото от менеджера]';
+            $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb, [
+                'type' => 'image',
+                'image_url' => $photoUrl ?: '',
+            ]);
         } elseif ($hasDocument) {
             $textForWeb = "💬 Оператор:\n" . ($caption !== '' ? $caption : '[документ от менеджера]');
+            $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb);
         } else {
             $textForWeb = "💬 Оператор:\n" . $rawText;
+            $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb);
         }
 
         logMsg('WEB direct reply from manager thread=' . (int)$threadId . ' web_session=' . $webSessionId);
-        $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb);
         if (empty($webResp['ok'])) {
             tgRequest('sendMessage', [
                 'chat_id'           => SUPPORT_CHAT_ID,

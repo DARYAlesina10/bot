@@ -30,6 +30,7 @@ const WEBCHAT_BOT_TOKEN = '7854808857:AAHmleyDhVZvpBrQXG1YiVbMl9gBfXak1xY';
 const WEBCHAT_THREAD_MAP_FILE = __DIR__ . '/webchat_data/thread_map.json';
 const WEBCHAT_SESSIONS_FILE = __DIR__ . '/webchat_data/sessions.json';
 const WEBCHAT_MESSAGES_DIR = __DIR__ . '/webchat_data/messages';
+const WEBCHAT_UPLOADS_DIR = __DIR__ . '/webchat_data/uploads';
 
 function wcEnsureStorage()
 {
@@ -38,6 +39,9 @@ function wcEnsureStorage()
     }
     if (!is_dir(WEBCHAT_MESSAGES_DIR)) {
         @mkdir(WEBCHAT_MESSAGES_DIR, 0777, true);
+    }
+    if (!is_dir(WEBCHAT_UPLOADS_DIR)) {
+        @mkdir(WEBCHAT_UPLOADS_DIR, 0777, true);
     }
 }
 
@@ -122,11 +126,42 @@ function wcAppendMessage($sessionId, $direction, $text)
     $messages[] = [
         'id' => (int)(microtime(true) * 1000),
         'direction' => $direction,
+        'type' => 'text',
         'text' => (string)$text,
         'created_at' => time(),
     ];
     wcWriteJson($file, $messages);
     return end($messages);
+}
+
+function wcAppendImageMessage($sessionId, $direction, $imageUrl, $caption = '')
+{
+    $file = wcSessionFile($sessionId);
+    $messages = wcReadJson($file, []);
+    $messages[] = [
+        'id' => (int)(microtime(true) * 1000),
+        'direction' => $direction,
+        'type' => 'image',
+        'text' => (string)$caption,
+        'image_url' => (string)$imageUrl,
+        'created_at' => time(),
+    ];
+    wcWriteJson($file, $messages);
+    return end($messages);
+}
+
+function wcBuildPublicBaseUrl()
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+    return $scheme . '://' . $host . ($scriptDir ?: '');
+}
+
+function wcShouldSendOffHoursAutoReply()
+{
+    $h = (int)date('G');
+    return ($h >= 18 || $h < 10);
 }
 
 wcEnsureStorage();
@@ -154,29 +189,75 @@ if ($action === 'send') {
     $sessionId = (string)($_POST['session_id'] ?? $_GET['session_id'] ?? '');
     $text = trim((string)($_POST['text'] ?? $_GET['text'] ?? ''));
     $name = trim((string)($_POST['name'] ?? $_GET['name'] ?? 'Гость сайта'));
-    if ($sessionId === '' || $text === '') {
-        echo json_encode(['ok' => false, 'error' => 'session_id and text are required'], JSON_UNESCAPED_UNICODE);
+    $hasImage = !empty($_FILES['image']['tmp_name']);
+    if ($sessionId === '' || ($text === '' && !$hasImage)) {
+        echo json_encode(['ok' => false, 'error' => 'session_id and text or image are required'], JSON_UNESCAPED_UNICODE);
         exit;
     }
-
-    wcAppendMessage($sessionId, 'visitor', $text);
     $threadId = wcEnsureThread($sessionId, $name);
     if (!$threadId) {
         echo json_encode(['ok' => false, 'error' => 'cannot create support thread'], JSON_UNESCAPED_UNICODE);
         exit;
     }
+    $send = null;
 
-    $send = wcTelegramRequest('sendMessage', [
-        'chat_id' => WEBCHAT_SUPPORT_CHAT_ID,
-        'message_thread_id' => $threadId,
-        'text' => "🌐 Сообщение из live-чата\nSession: web_{$sessionId}\nИмя: {$name}\n\n{$text}",
-    ]);
+    if ($hasImage) {
+        $tmp = $_FILES['image']['tmp_name'];
+        $ext = strtolower(pathinfo((string)($_FILES['image']['name'] ?? 'img.jpg'), PATHINFO_EXTENSION));
+        if ($ext === '') $ext = 'jpg';
+        $fileName = preg_replace('/[^a-zA-Z0-9_\-]/', '', $sessionId) . '_' . time() . '.' . $ext;
+        $target = WEBCHAT_UPLOADS_DIR . '/' . $fileName;
+        if (!@move_uploaded_file($tmp, $target)) {
+            echo json_encode(['ok' => false, 'error' => 'cannot store image'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $imageUrl = wcBuildPublicBaseUrl() . '/webchat_data/uploads/' . $fileName;
+        wcAppendImageMessage($sessionId, 'visitor', $imageUrl, $text);
+
+        $send = wcTelegramRequest('sendPhoto', [
+            'chat_id' => WEBCHAT_SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'photo' => $imageUrl,
+            'caption' => "🌐 Фото из live-чата\nSession: web_{$sessionId}\nИмя: {$name}" . ($text !== '' ? "\n\n{$text}" : ''),
+        ]);
+    } else {
+        wcAppendMessage($sessionId, 'visitor', $text);
+        $send = wcTelegramRequest('sendMessage', [
+            'chat_id' => WEBCHAT_SUPPORT_CHAT_ID,
+            'message_thread_id' => $threadId,
+            'text' => "🌐 Сообщение из live-чата\nSession: web_{$sessionId}\nИмя: {$name}\n\n{$text}",
+        ]);
+    }
+
+    if (wcShouldSendOffHoursAutoReply()) {
+        $sessions = wcReadJson(WEBCHAT_SESSIONS_FILE, ['sessions' => []]);
+        $lastAuto = (int)($sessions['sessions'][$sessionId]['last_auto_reply_at'] ?? 0);
+        if ($lastAuto === 0 || (time() - $lastAuto) > 1800) {
+            $autoText = "Спасибо за сообщение 💛 Сейчас нерабочее время (с 18:00 до 10:00). Оставьте, пожалуйста, номер телефона — мы свяжемся с вами утром. Либо напишите в Telegram-бот: https://t.me/PandoroomBot";
+            wcAppendMessage($sessionId, 'operator', $autoText);
+            $sessions['sessions'][$sessionId]['last_auto_reply_at'] = time();
+            $sessions['sessions'][$sessionId]['updated_at'] = time();
+            wcWriteJson(WEBCHAT_SESSIONS_FILE, $sessions);
+        }
+    }
 
     echo json_encode([
         'ok' => !empty($send['ok']),
         'thread_id' => $threadId,
         'telegram' => $send,
     ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'history') {
+    $sessionId = (string)($_GET['session_id'] ?? '');
+    if ($sessionId === '') {
+        echo json_encode(['ok' => false, 'error' => 'session_id is required'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $messages = wcReadJson(wcSessionFile($sessionId), []);
+    echo json_encode(['ok' => true, 'messages' => $messages], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
