@@ -29,7 +29,7 @@
       margin: 0;
       padding: 0;
     }
-	
+
 	#booking-master {
   position: relative;
 }
@@ -1047,7 +1047,7 @@
             </div>
           </div>
 
-      
+
 
           <!-- БЛОК 3: Торт / шоу / украшения -->
           <div class="event-field-group">
@@ -1128,7 +1128,7 @@
         </div>
       </div>
 
-   
+
 
       <button type="button" class="btn btn-primary btn-full" id="bm-next-to-tables">
         Далее: выбрать стол
@@ -1212,7 +1212,7 @@
 </div>
 
 <script>
-  // =============== УТИЛИТЫ ===============  
+  // =============== УТИЛИТЫ ===============
   function qs(selector) { return document.querySelector(selector); }
   function qsa(selector) { return Array.from(document.querySelectorAll(selector)); }
 
@@ -1373,13 +1373,13 @@ function formatDateTime(input) {
 }
 
 
-  // =============== TELEGRAM INIT ===============  
+  // =============== TELEGRAM INIT ===============
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   if (tg) {
     tg.expand();
   }
 
-  // ====== МОДАЛКА (если захочешь использовать) ======  
+  // ====== МОДАЛКА (если захочешь использовать) ======
   function openEventModal() {
     const modal = qs('#event-modal');
     if (!modal) return;
@@ -1411,7 +1411,7 @@ function formatDateTime(input) {
     return active ? active.getAttribute('data-value') : (fallback || null);
   }
 
-  // =============== МИНИ-ПАСПОРТ СВЕРХУ ===============  
+  // =============== МИНИ-ПАСПОРТ СВЕРХУ ===============
   function renderMiniPassport(level) {
     const lvl = Number(level) || 0;
     qs('#passport-mini-label').textContent = `Уровень: ${lvl || '—'} / 12`;
@@ -1425,7 +1425,7 @@ function formatDateTime(input) {
     }
   }
 
-  // =============== ПАСПОРТ В РАЗДЕЛЕ ===============  
+  // =============== ПАСПОРТ В РАЗДЕЛЕ ===============
   function renderPassport(level, questsDone, nextLevel, nextGiftName) {
     const lvl = Number(level) || 0;
     const done = Number(questsDone) || lvl;
@@ -1454,7 +1454,7 @@ function formatDateTime(input) {
     }
   }
 
-  // =============== ПОДАРКИ ===============  
+  // =============== ПОДАРКИ ===============
   function renderGifts(gifts) {
     const container = qs('#gifts-container');
     container.innerHTML = '';
@@ -1713,7 +1713,7 @@ function renderQuests(quests) {
 }
 
 
-  // =============== ПРАЗДНИК ===============  
+  // =============== ПРАЗДНИК ===============
   function renderPartyFromParams(params) {
     const container = qs('#party-container');
 
@@ -1810,7 +1810,7 @@ function renderQuests(quests) {
   phone: window.__pandoroomPhone || null,
   timestamp: Date.now()
 });
-	  
+
         tg.sendData(JSON.stringify({
           action: 'prepay',
           source: 'party_card',
@@ -1871,7 +1871,7 @@ function renderQuests(quests) {
     return true;
   }
 
-  // =============== ЗАГРУЗКА ВСЕГО (бонусы/квесты/праздник) ===============  
+  // =============== ЗАГРУЗКА ВСЕГО (бонусы/квесты/праздник) ===============
   async function loadAll(phone, params) {
     window.__pandoroomPhone = phone || '';
 
@@ -1982,7 +1982,7 @@ function renderQuests(quests) {
     }
   }
 
-  // =============== ВКЛАДКИ ===============  
+  // =============== ВКЛАДКИ ===============
   function initTabs() {
     const tabs = qsa('.tab-btn');
     tabs.forEach(btn => {
@@ -1998,7 +1998,7 @@ function renderQuests(quests) {
     });
   }
 
-  // ======== ОТКРЫТЬ МАСТЕР БРОНИРОВАНИЯ ========  
+  // ======== ОТКРЫТЬ МАСТЕР БРОНИРОВАНИЯ ========
 function openBookingWizard() {
   const btnParty = document.querySelector('.tab-btn[data-tab="party"]');
   if (btnParty) {
@@ -2019,7 +2019,7 @@ function openBookingWizard() {
 }
 
 
-  // =============== КНОПКИ ДЕЙСТВИЙ + МОДАЛКА ===============  
+  // =============== КНОПКИ ДЕЙСТВИЙ + МОДАЛКА ===============
   function initActions() {
     const btnQuest = qs('#btn-want-quest');
     const btnEvent = qs('#btn-add-event');
@@ -2050,7 +2050,7 @@ if (btnQuest) {
         // Открываем мастер бронирования
         openBookingWizard();
 
-    
+
       });
     }
 
@@ -2134,7 +2134,7 @@ if (btnQuest) {
     }
   }
 
-  // ==================== BOOKING MASTER ====================  
+  // ==================== BOOKING MASTER ====================
   const API_BOT_URL = 'https://pandoroom.tech/telegramm/bot.php';
 
   const bookingState = {
@@ -2146,7 +2146,7 @@ if (btnQuest) {
   adults: 0,
   hall: null,
   table: null,
-  quests: [],     
+  quests: [],
   menuItems: []
 };
 
@@ -2200,7 +2200,7 @@ if (btnQuest) {
   parts.push(`🪑 Стол: ${bookingState.table.label || bookingState.table.name || bookingState.table.id}`);
 }
 
-   
+
   if (bookingState.quests && bookingState.quests.length) {
   const questLines = bookingState.quests.map(q =>
     `${q.title || 'Квест'} в ${q.time || ''}`
@@ -2879,7 +2879,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         let total = 0;
-      
+
 if (Array.isArray(bookingState.quests)) {
   bookingState.quests.forEach(q => {
     if (q.price) total += Number(q.price) || 0;
@@ -2962,7 +2962,7 @@ alert('Заявка отправлена! Менеджер свяжется с �
           const text = await res.text();
           console.log('prechek.php response:', text);
 
-          
+
 
        if (window.Telegram && window.Telegram.WebApp) {
   const phoneRaw = window.__pandoroomPhone || '';
@@ -3022,7 +3022,7 @@ function initBookingMasterClose() {
   });
 }
 
-  // =============== СТАРТ ===============  
+  // =============== СТАРТ ===============
   document.addEventListener('DOMContentLoaded', () => {
     const params = getQueryParams();
     const phone = params.phone || '';
@@ -3041,5 +3041,52 @@ if (qs('#booking-master')) {
   }
   });
 </script>
+
+<script>
+(function(){
+  function qs(s){return document.querySelector(s)}
+  function qsa(s){return Array.from(document.querySelectorAll(s))}
+  function escapeHtml(v){return String(v??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]||m));}
+  const params=new URLSearchParams(location.search);
+  const phone=(params.get('phone')||'').replace(/\D+/g,'');
+  const name=(params.get('name')||'Гость Pandoroom').trim();
+
+  const heroName = qs('.hero-name') || qs('#user-name');
+  if (heroName) heroName.innerHTML = escapeHtml(name).replace(/\s+/,'<br>');
+  const heroPhone = qs('.hero-phone') || qs('#user-phone');
+  if (heroPhone) heroPhone.textContent = phone ? ('+'+phone) : 'Телефон не указан';
+
+  async function fetchJson(url){ const r=await fetch(url); return await r.json(); }
+
+  async function loadData(){
+    if(!phone) return;
+    try{
+      const gifts=await fetchJson('gifts_proxy.php?phone='+encodeURIComponent(phone));
+      const bonus=Number(gifts.bonus||0);
+      const level=Number(gifts.passport_level||0);
+      const gcount=Array.isArray(gifts.gifts)?gifts.gifts.length:0;
+      const b1=qs('.hero-bonus') || qs('#user-bonus');
+      if (b1) b1.textContent='Бонусы: '+bonus+' ₽';
+      const lvl=qs('.hero-right strong');
+      if(lvl) lvl.textContent='Уровень '+level+' / 12';
+      const stats=qsa('.stat strong');
+      if(stats.length>=3){stats[0].textContent=bonus+' ₽';stats[1].textContent=String(level);stats[2].textContent=String(gcount);}
+    }catch(e){}
+
+    try{
+      const quests=await fetchJson('quests_proxy.php?phone='+encodeURIComponent(phone));
+      if(Array.isArray(quests)){
+        const now=Date.now();
+        let upcoming=0,past=0;
+        quests.forEach(q=>{const d=Date.parse((q.data||q.date||'').replace(/(\d{2})\.(\d{2})\.(\d{4})/,'$3-$2-$1')+' '+(q.time||q.time_start||'')); if(!isNaN(d)&&d>=now) upcoming++; else past++;});
+        const stats=qsa('.stat strong');
+        if(stats.length>=6){stats[3].textContent=String(upcoming);stats[4].textContent=String(quests.length);stats[5].textContent=String(past);}
+      }
+    }catch(e){}
+  }
+  loadData();
+})();
+</script>
+
 </body>
 </html>
