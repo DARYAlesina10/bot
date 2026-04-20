@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Pandoroom — Новый мини-апп</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0b0b0b; --card:#252525; --stroke:rgba(255,255,255,.05); --text:#fff; --muted:#9a9a9a; --lime:#98cf00; --pink:#e200b8; --pink-2:#ff21cf; --screen:390px; }
+    *{box-sizing:border-box} html,body{margin:0;background:linear-gradient(180deg,#050505,#0b0b0b);color:var(--text);font-family:Inter,sans-serif}
+    .app{max-width:var(--screen);margin:0 auto;padding:14px 10px 24px;min-height:100vh}
+    .top{display:flex;align-items:center;gap:12px;margin-bottom:14px}.avatar{width:36px;height:36px;border-radius:12px;background:#1a1a1a}
+    .top-title h1{margin:0;font-size:15px}.top-title p{margin:2px 0 0;font-size:12px;color:#f4f4f4;opacity:.9}
+    .tabs{display:flex;gap:10px;margin-bottom:14px}.tab{flex:1;background:none;border:none;color:#909090;padding:0 0 8px;font-size:11px;font-weight:600;position:relative}
+    .tab.active{color:var(--lime)} .tab.active:after{content:'';position:absolute;left:18%;right:18%;bottom:0;height:2px;background:var(--lime);border-radius:999px}
+    .hero{background:linear-gradient(180deg,#a8d800,#8eb800);color:#151515;border-radius:14px;padding:12px;display:flex;justify-content:space-between;gap:10px;margin-bottom:12px}
+    .hero-name{font-size:14px;font-weight:700;margin:0 0 4px}.hero-phone,.hero-bonus{font-size:10px;margin:0;color:rgba(0,0,0,.72);font-weight:600}
+    .hero-right{min-width:106px;background:rgba(255,255,255,.14);border-radius:10px;padding:9px 10px}.hero-right small{font-size:10px;color:rgba(0,0,0,.62)} .hero-right strong{display:block;font-size:13px}
+    .section-title{font-size:16px;margin:0 0 6px}.section-lead{color:var(--muted);font-size:10px;margin:0 0 10px}
+    .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+    .stat{background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.018));border:1px solid var(--stroke);border-radius:12px;padding:9px}
+    .stat span{display:block;color:#8d8d8d;font-size:9px;margin-bottom:8px}.stat strong{font-size:14px}
+    .card{background:linear-gradient(180deg,#2a2a2a,#242424);border:1px solid var(--stroke);border-radius:16px;padding:12px;margin-bottom:12px}
+    .quest-item{display:grid;grid-template-columns:88px 1fr;gap:10px;margin-bottom:10px}.thumb{border-radius:10px;min-height:88px;background:#1a1a1a center/cover no-repeat}
+    .quest-name{margin:0 0 4px;font-size:14px}.meta{font-size:10px;color:#9f9f9f}
+    .empty{color:#9a9a9a;font-size:12px}
+    .section{display:none}.section.active{display:block}
+    .btn{height:28px;border:none;border-radius:999px;padding:0 14px;font-weight:800;font-size:10px}.btn.pink{background:linear-gradient(90deg,var(--pink),var(--pink-2));color:#fff}
+  </style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <div class="avatar"></div>
+    <div class="top-title"><h1>Личный кабинет</h1><p>Pandoroom</p></div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="quests">Квесты</button>
+    <button class="tab" data-tab="party">Праздники</button>
+    <button class="tab" data-tab="gifts">Подарки</button>
+    <button class="tab" data-tab="passport">Паспорт</button>
+  </nav>
+
+  <section class="hero">
+    <div>
+      <p class="hero-name" id="hero-name">Гость Pandoroom</p>
+      <p class="hero-phone" id="hero-phone">Телефон не указан</p>
+      <p class="hero-bonus" id="hero-bonus">Бонусы: — ₽</p>
+    </div>
+    <div class="hero-right">
+      <small>Паспорт игрока</small>
+      <strong id="hero-level">Уровень — / 12</strong>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Ваша статистика</h2>
+    <div class="stats-grid">
+      <div class="stat"><span>Бонусы</span><strong id="st-bonus">—</strong></div>
+      <div class="stat"><span>Уровень паспорта</span><strong id="st-level">—</strong></div>
+      <div class="stat"><span>Активных подарков</span><strong id="st-gifts">—</strong></div>
+      <div class="stat"><span>Предстоящих квестов</span><strong id="st-upcoming">—</strong></div>
+      <div class="stat"><span>Пройдено квестов</span><strong id="st-done">—</strong></div>
+      <div class="stat"><span>Прошедших квестов</span><strong id="st-past">—</strong></div>
+    </div>
+  </section>
+
+  <section id="sec-quests" class="section active">
+    <h2 class="section-title">Мои квесты</h2>
+    <p class="section-lead">Все прошедшие и предстоящие игры по вашему номеру телефона</p>
+    <div class="card" id="quests-list"><div class="empty">Загружаем квесты…</div></div>
+  </section>
+
+  <section id="sec-party" class="section">
+    <h2 class="section-title">Праздник</h2>
+    <div class="card" id="party-card"><div class="empty">Загружаем мероприятие…</div></div>
+  </section>
+
+  <section id="sec-gifts" class="section">
+    <h2 class="section-title">Подарки</h2>
+    <div class="card" id="gifts-card"><div class="empty">Загружаем подарки…</div></div>
+  </section>
+
+  <section id="sec-passport" class="section">
+    <h2 class="section-title">Паспорт</h2>
+    <div class="card" id="passport-card"><div class="empty">Загружаем паспорт…</div></div>
+  </section>
+</main>
+
+<script>
+  const qs = s => document.querySelector(s);
+  const qsa = s => Array.from(document.querySelectorAll(s));
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  qsa('.tab').forEach(btn => btn.addEventListener('click', () => {
+    qsa('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    qsa('.section').forEach(s => s.classList.remove('active'));
+    qs('#sec-' + tab)?.classList.add('active');
+  }));
+
+  const params = new URLSearchParams(location.search);
+  const phone = (params.get('phone') || '').replace(/\D+/g, '');
+  const name = params.get('name') || tg?.initDataUnsafe?.user?.first_name || 'Гость Pandoroom';
+  qs('#hero-name').textContent = name;
+  qs('#hero-phone').textContent = phone ? ('+' + phone) : 'Телефон не указан';
+
+  async function j(url){ const r = await fetch(url); return await r.json(); }
+  function esc(v){ return String(v ?? '').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m])); }
+
+  (async () => {
+    if (!phone) {
+      qs('#quests-list').innerHTML = '<div class="empty">Откройте мини-апп через бота с номером телефона.</div>';
+      return;
+    }
+
+    try {
+      const g = await j('gifts_proxy.php?phone=' + encodeURIComponent(phone));
+      const bonus = Number(g.bonus || 0), level = Number(g.passport_level || 0), gifts = Array.isArray(g.gifts) ? g.gifts : [];
+      qs('#hero-bonus').textContent = `Бонусы: ${bonus} ₽`;
+      qs('#hero-level').textContent = `Уровень ${level} / 12`;
+      qs('#st-bonus').textContent = bonus + ' ₽';
+      qs('#st-level').textContent = String(level);
+      qs('#st-gifts').textContent = String(gifts.length);
+      qs('#st-done').textContent = String(g.quests_done || 0);
+      qs('#gifts-card').innerHTML = gifts.length ? gifts.map(x => `<div class="meta">• ${esc(x.name || x.title || 'Подарок')}</div>`).join('') : '<div class="empty">Подарков пока нет</div>';
+      qs('#passport-card').innerHTML = `<div class="meta">Текущий уровень: ${level}</div><div class="meta">До следующего: ${esc(g.next_level_quests ?? '—')} квестов</div>`;
+    } catch(e) {
+      qs('#gifts-card').innerHTML = '<div class="empty">Не удалось загрузить подарки</div>';
+    }
+
+    try {
+      const q = await j('quests_proxy.php?phone=' + encodeURIComponent(phone));
+      if (!Array.isArray(q) || !q.length) {
+        qs('#quests-list').innerHTML = '<div class="empty">Квесты не найдены</div>';
+      } else {
+        let up=0,past=0;
+        qs('#quests-list').innerHTML = q.slice(0, 8).map((x, i) => {
+          const dt = Date.parse(((x.data || x.date || '').replace(/(\d{2})\.(\d{2})\.(\d{4})/, '$3-$2-$1')) + ' ' + (x.time || ''));
+          if (!Number.isNaN(dt) && dt >= Date.now()) up++; else past++;
+          const img = x.image || x.img || x.photo || '';
+          return `<article class="quest-item">
+            <div class="thumb" style="${img ? `background-image:url('${esc(img)}')` : ''}"></div>
+            <div><h3 class="quest-name">${esc(x.title || x.name || 'Квест')}</h3><div class="meta">${esc((x.data || x.date || '—') + ' ' + (x.time || ''))}</div></div>
+          </article>`;
+        }).join('');
+        qs('#st-upcoming').textContent = String(up);
+        qs('#st-past').textContent = String(past);
+      }
+    } catch(e) {
+      qs('#quests-list').innerHTML = '<div class="empty">Не удалось загрузить квесты</div>';
+    }
+
+    try {
+      const p = await j('party_proxy.php?phone=' + encodeURIComponent(phone));
+      if (!p || !p.datas) {
+        qs('#party-card').innerHTML = '<div class="empty">Праздник пока не найден</div>';
+      } else {
+        qs('#party-card').innerHTML = `
+          <div class="meta">Дата: ${esc(p.datas)}</div>
+          <div class="meta">Время: ${esc((p.start || '') + ' - ' + (p.stop || ''))}</div>
+          <div class="meta">Зал/стол: ${esc(((p.zal || '') + ' ' + (p.stol || '')).trim())}</div>
+          <div class="meta">Гостей: ${esc(p.kol || '—')}</div>`;
+      }
+    } catch(e) {
+      qs('#party-card').innerHTML = '<div class="empty">Не удалось загрузить мероприятие</div>';
+    }
+  })();
+</script>
+</body>
+</html>
