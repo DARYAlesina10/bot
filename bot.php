@@ -1163,7 +1163,12 @@ function getIikoCategoriesByPhone($phone) {
 function getEventInfoByPhone($phone) {
     if (!$phone) return null;
 
-    $payload = json_encode(['da' => (string)$phone], JSON_UNESCAPED_UNICODE);
+    $normalizedPhone = preg_replace('/\D+/', '', (string)$phone);
+    if ($normalizedPhone === '') {
+        $normalizedPhone = (string)$phone;
+    }
+
+    $payload = json_encode(['da' => $normalizedPhone], JSON_UNESCAPED_UNICODE);
 
     $res = null;
     foreach ([

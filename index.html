@@ -1755,7 +1755,7 @@ function renderQuests(quests) {
     // 1) Паспорт + подарки + бонусы
     if (phone) {
       try {
-        const res = await fetch('https://pandoroom.tech/telegramm/gifts_proxy.php?phone=' + encodeURIComponent(phone));
+        const res = await fetch('gifts_proxy.php?phone=' + encodeURIComponent(phone));
         const data = await res.json();
 
         const bonus = data.bonus ?? null;
@@ -1794,7 +1794,7 @@ function renderQuests(quests) {
     // 2) Квесты
     if (phone) {
       try {
-        const res = await fetch('https://pandoroom.tech/telegramm/quests_proxy.php?phone=' + encodeURIComponent(phone));
+        const res = await fetch('quests_proxy.php?phone=' + encodeURIComponent(phone));
         const data = await res.json();
         if (Array.isArray(data)) {
           renderQuests(data);
@@ -1821,7 +1821,7 @@ function renderQuests(quests) {
       const renderedFromParams = renderPartyFromParams(params);
 
       if (!renderedFromParams && phone) {
-        const res = await fetch('https://pandoroom.tech/telegramm/party_proxy.php?phone=' + encodeURIComponent(phone));
+        const res = await fetch('party_proxy.php?phone=' + encodeURIComponent(phone));
         const data = await res.json();
 
         if (!data || !data.datas) {
