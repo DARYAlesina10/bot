@@ -203,6 +203,52 @@ function tgGetFileUrlById($fileId)
     return 'https://api.telegram.org/file/bot' . $token . '/' . $resp['result']['file_path'];
 }
 
+function buildCurrentScriptPublicBaseUrl()
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if ($host === '') {
+        return '';
+    }
+    $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+    return $scheme . '://' . $host . ($scriptDir ?: '');
+}
+
+function cacheTelegramFileForWebChat($fileId, $originalName = 'file')
+{
+    $sourceUrl = tgGetFileUrlById($fileId);
+    if (!$sourceUrl) {
+        return null;
+    }
+
+    $binary = httpRequest($sourceUrl, null, [], 20);
+    if (!is_string($binary) || $binary === '') {
+        return null;
+    }
+
+    $uploadsDir = __DIR__ . '/webchat_data/uploads';
+    if (!is_dir($uploadsDir) && !@mkdir($uploadsDir, 0777, true) && !is_dir($uploadsDir)) {
+        return null;
+    }
+
+    $ext = strtolower(pathinfo((string)$originalName, PATHINFO_EXTENSION));
+    if ($ext === '') {
+        $ext = 'bin';
+    }
+    $name = 'tg_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $target = $uploadsDir . '/' . $name;
+    if (file_put_contents($target, $binary) === false) {
+        return null;
+    }
+
+    $base = buildCurrentScriptPublicBaseUrl();
+    if ($base === '') {
+        return null;
+    }
+
+    return $base . '/webchat_data/uploads/' . $name;
+}
+
 // Локальное хранилище исходящих сообщений бота клиенту
 function bot_messages_load() {
     global $botMessagesFile;
@@ -3399,8 +3445,11 @@ function handleManagerMessage($message) {
         } elseif ($hasDocument) {
             $doc = $message['document'];
             $fileId = $doc['file_id'] ?? null;
-            $docUrl = tgGetFileUrlById($fileId);
             $docName = $doc['file_name'] ?? 'document';
+            $docUrl = cacheTelegramFileForWebChat($fileId, $docName);
+            if (!$docUrl) {
+                $docUrl = tgGetFileUrlById($fileId);
+            }
             $textForWeb = "💬 Оператор:\n" . ($caption !== '' ? $caption : '[документ от менеджера]');
             $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb, [
                 'type' => 'document',

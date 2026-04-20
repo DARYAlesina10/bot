@@ -82,6 +82,15 @@
 
   function playIncomingSound() {
     try {
+      if ("speechSynthesis" in window && typeof window.SpeechSynthesisUtterance !== "undefined") {
+        const utterance = new SpeechSynthesisUtterance("Новое сообщение от Пандорум");
+        utterance.lang = "ru-RU";
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+        return;
+      }
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();

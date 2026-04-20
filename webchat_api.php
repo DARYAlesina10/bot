@@ -177,7 +177,9 @@ function wcBuildPublicBaseUrl()
 
 function wcShouldSendOffHoursAutoReply()
 {
-    $h = (int)date('G');
+    $tz = new DateTimeZone('Asia/Vladivostok');
+    $now = new DateTime('now', $tz);
+    $h = (int)$now->format('G');
     return ($h >= 18 || $h < 10);
 }
 
