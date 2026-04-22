@@ -1266,9 +1266,48 @@ function getEventInfoByPhone($phone) {
     ];
 }
 
+function getEventInfoByPhoneViaPartyProxy($phone)
+{
+    $cleanPhone = preg_replace('/\D+/', '', (string)$phone);
+    if ($cleanPhone === '') {
+        return null;
+    }
+
+    foreach ([
+        'https://pandoroom.tech/telegramm/party_proxy.php',
+        'https://tgbotum145.ru/telegramm/party_proxy.php',
+    ] as $proxyUrl) {
+        $resp = httpRequest($proxyUrl . '?phone=' . urlencode($cleanPhone), null, [], 8);
+        if (!is_string($resp) || trim($resp) === '') {
+            continue;
+        }
+        if (stripos($resp, '<html') !== false) {
+            continue;
+        }
+
+        $data = json_decode($resp, true);
+        if (!is_array($data) || empty($data['datas'])) {
+            continue;
+        }
+
+        return [
+            'date'      => $data['datas'] ?? '',
+            'time_from' => $data['start'] ?? '',
+            'time_to'   => $data['stop'] ?? '',
+            'hall'      => trim(($data['zal'] ?? '') . ' ' . ($data['stol'] ?? '')),
+            'branch'    => $data['dep'] ?? '',
+        ];
+    }
+
+    return null;
+}
+
 function buildInvitationLink($phone)
 {
     $event = getEventInfoByPhone($phone);
+    if (!$event) {
+        $event = getEventInfoByPhoneViaPartyProxy($phone);
+    }
     if (!$event) {
         return ['error' => 'Не найдено ближайшее мероприятие для клиента.'];
     }
