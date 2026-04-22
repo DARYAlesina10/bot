@@ -1350,8 +1350,25 @@ function buildInvitationLink($phone)
         'tel'  => $cleanPhone,
     ];
 
-    $url = 'https://pandoroom.org/priglashu.php?' . http_build_query($params);
-    $resp = httpRequest($url, null, [], 7);
+    $resp = null;
+    foreach ([
+        'https://pandoroom.tech/priglashu.php',
+        'https://pandoroom.org/priglashu.php',
+        'https://tgbotum145.ru/priglashu.php',
+    ] as $inviteBaseUrl) {
+        $url = $inviteBaseUrl . '?' . http_build_query($params);
+        $candidate = httpRequest($url, null, [], 8);
+        if (!is_string($candidate) || trim($candidate) === '') {
+            logMsg('INVITE LINK EMPTY: ' . $url);
+            continue;
+        }
+        if (stripos($candidate, '<html') !== false) {
+            logMsg('INVITE LINK HTML: ' . $url . ' RESP=' . substr($candidate, 0, 200));
+            continue;
+        }
+        $resp = $candidate;
+        break;
+    }
 
     if (!is_string($resp) || trim($resp) === '') {
         return ['error' => 'Не удалось получить ссылку приглашения.'];
