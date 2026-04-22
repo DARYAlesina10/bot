@@ -29,7 +29,7 @@
       margin: 0;
       padding: 0;
     }
-	
+
 	#booking-master {
   position: relative;
 }
@@ -759,39 +759,292 @@
     }
 
   </style>
+  <style>
+    /* ===== NEW MINI APP THEME (compatible override for current markup) ===== */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    :root {
+      --bg: #0b0b0b;
+      --bg-soft: #111111;
+      --bg-card: #252525;
+      --accent: #98cf00;
+      --accent-soft: rgba(152, 207, 0, 0.16);
+      --accent-strong: #b7ef19;
+      --text: #ffffff;
+      --text-soft: #9a9a9a;
+      --border: rgba(255,255,255,.07);
+    }
+
+    html, body {
+      background:
+        radial-gradient(circle at 50% -10%, rgba(152,207,0,.18), transparent 28%),
+        radial-gradient(circle at 50% 10%, rgba(255,255,255,.04), transparent 32%),
+        linear-gradient(180deg, #050505 0%, #0b0b0b 100%);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      padding: 14px 10px 24px;
+      min-height: 100vh;
+    }
+
+    .app { max-width: 390px; }
+
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding: 0 2px;
+    }
+
+    .top-title h1 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.12;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .top-title p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: #f4f4f4;
+      opacity: .9;
+      font-weight: 500;
+    }
+
+    .app-title,
+    .app-subtitle,
+    .section-title,
+    .card-title,
+    .user-name {
+      color: #f4f4f4;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.28);
+      background: linear-gradient(180deg, #3a2a1f 0%, #161616 100%);
+      color: #fff;
+      font-size: 16px;
+    }
+
+    .top-widget {
+      background: linear-gradient(180deg, #a8d800 0%, #8eb800 100%);
+      color: #151515;
+      border: none;
+      border-radius: 14px;
+      box-shadow: 0 10px 24px rgba(139,184,0,.24);
+    }
+    .hero {
+      padding: 12px 12px 11px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .hero-name {
+      font-size: 14px;
+      line-height: 1.1;
+      font-weight: 700;
+      margin: 0 0 4px;
+      color: #151515;
+    }
+
+    .hero-phone,
+    .hero-bonus {
+      font-size: 10px;
+      line-height: 1.25;
+      color: rgba(0,0,0,.72);
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .user-phone,
+    .user-bonus,
+    .passport-mini small { color: rgba(0,0,0,.72); }
+
+    .passport-mini {
+      background: rgba(255,255,255,.14);
+      border: none;
+      color: #141414;
+      backdrop-filter: blur(6px);
+      min-width: 106px;
+      border-radius: 10px;
+      padding: 9px 10px;
+    }
+
+    .hero-right strong {
+      display: block;
+      font-size: 13px;
+      line-height: 1.15;
+      font-weight: 800;
+      color: rgba(0,0,0,.82);
+    }
+
+    .hero-dots {
+      display: flex;
+      gap: 4px;
+      margin-top: 5px;
+    }
+
+    .hero-dots .passport-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      box-shadow: none;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.018));
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 12px;
+      min-height: 58px;
+      padding: 9px 9px 8px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.28);
+    }
+
+    .stat span {
+      display: block;
+      color: #8d8d8d;
+      font-size: 9px;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1;
+      font-weight: 800;
+    }
+
+    .tabs {
+      gap: 10px;
+      margin: 0 2px 14px;
+      padding-bottom: 2px;
+    }
+
+    .tab-btn {
+      border: none;
+      background: transparent;
+      border-radius: 0;
+      padding: 0 0 8px;
+      color: #909090;
+      font-size: 11px;
+      font-weight: 600;
+      position: relative;
+    }
+
+    .tab-btn.active {
+      background: transparent;
+      color: var(--accent);
+      border: none;
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      bottom: 0;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .section-subtitle,
+    .card-text,
+    .card-row,
+    .empty { color: var(--text-soft); }
+
+    .card,
+    .summary,
+    .quest-mini,
+    .cake-mini {
+      background: linear-gradient(180deg, #2a2a2a 0%, #242424 100%);
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 30px rgba(0,0,0,.28);
+      color: var(--text);
+    }
+
+    .card-badge,
+    .card-pill {
+      background: rgba(255,255,255,.08);
+      border-color: var(--border);
+      color: #dedede;
+    }
+
+    .btn-primary,
+    .btn.lime {
+      background: var(--accent);
+      color: #141414;
+      border-color: transparent;
+    }
+
+    .btn-outline,
+    .btn.pink {
+      background: linear-gradient(90deg, #e200b8 0%, #ff21cf 100%);
+      color: #fff;
+      border-color: transparent;
+    }
+  </style>
 
 </head>
 <body>
 <div class="app">
-  <header class="app-header">
-    <div class="avatar" id="avatar-initials">P</div>
-    <div class="app-title-block">
-      <div class="app-title">Личный кабинет Pandoroom</div>
-      <div class="app-subtitle">Ваши квесты, бонусы, подарки и праздники</div>
+  <header class="top app-header">
+    <div class="avatar" id="avatar-initials"></div>
+    <div class="top-title app-title-block">
+      <h1>Личный кабинет</h1>
+      <p>Pandoroom</p>
     </div>
-    <div class="pill">Beta</div>
   </header>
 
-  <div class="top-widget">
+  <div class="top-widget hero">
     <div class="user-info-main">
-      <div class="user-name" id="user-name">Гость Pandoroom</div>
-      <div class="user-phone" id="user-phone">Телефон не указан</div>
-      <div class="user-bonus" id="user-bonus">Бонусы: <strong>—</strong></div>
+      <div class="user-name hero-name" id="user-name">Гость Pandoroom</div>
+      <div class="user-phone hero-phone" id="user-phone">Телефон не указан</div>
+      <div class="user-bonus hero-bonus" id="user-bonus">Бонусы: <strong>—</strong></div>
     </div>
-    <div class="passport-mini">
-      <div class="small">Паспорт игрока</div>
-      <div class="small" id="passport-mini-label">Уровень: — / 12</div>
-      <div class="passport-steps-mini" id="passport-mini-steps"></div>
+    <div class="passport-mini hero-right">
+      <small>Паспорт игрока</small>
+      <strong id="passport-mini-label">Уровень — / 12</strong>
+      <div class="passport-steps-mini hero-dots" id="passport-mini-steps"></div>
     </div>
   </div>
 
-  <!-- БЛОК СТАТИСТИКИ УБРАН -->
+  <section>
+    <h2 class="section-title">Ваша статистика</h2>
+    <div class="stats-grid">
+      <div class="stat"><span>Бонусы</span><strong>—</strong></div>
+      <div class="stat"><span>Уровень паспорта</span><strong>—</strong></div>
+      <div class="stat"><span>Активных подарков</span><strong>—</strong></div>
+      <div class="stat"><span>Предстоящих квестов</span><strong>—</strong></div>
+      <div class="stat"><span>Пройдено квестов</span><strong>—</strong></div>
+      <div class="stat"><span>Прошедших квестов</span><strong>—</strong></div>
+    </div>
+  </section>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="quests">Квесты</button>
-    <button class="tab-btn" data-tab="party">Праздник</button>
-    <button class="tab-btn" data-tab="gifts">Подарки</button>
-    <button class="tab-btn" data-tab="passport">Паспорт</button>
+    <button class="tab tab-btn active" data-tab="quests">Квесты</button>
+    <button class="tab tab-btn" data-tab="party">Праздники</button>
+    <button class="tab tab-btn" data-tab="gifts">Подарки</button>
+    <button class="tab tab-btn" data-tab="passport">Паспорт</button>
   </div>
 
   <!-- КВЕСТЫ -->
@@ -908,7 +1161,7 @@
             </div>
           </div>
 
-      
+
 
           <!-- БЛОК 3: Торт / шоу / украшения -->
           <div class="event-field-group">
@@ -989,7 +1242,7 @@
         </div>
       </div>
 
-   
+
 
       <button type="button" class="btn btn-primary btn-full" id="bm-next-to-tables">
         Далее: выбрать стол
@@ -1073,7 +1326,7 @@
 </div>
 
 <script>
-  // =============== УТИЛИТЫ ===============  
+  // =============== УТИЛИТЫ ===============
   function qs(selector) { return document.querySelector(selector); }
   function qsa(selector) { return Array.from(document.querySelectorAll(selector)); }
 
@@ -1234,13 +1487,13 @@ function formatDateTime(input) {
 }
 
 
-  // =============== TELEGRAM INIT ===============  
+  // =============== TELEGRAM INIT ===============
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   if (tg) {
     tg.expand();
   }
 
-  // ====== МОДАЛКА (если захочешь использовать) ======  
+  // ====== МОДАЛКА (если захочешь использовать) ======
   function openEventModal() {
     const modal = qs('#event-modal');
     if (!modal) return;
@@ -1272,7 +1525,7 @@ function formatDateTime(input) {
     return active ? active.getAttribute('data-value') : (fallback || null);
   }
 
-  // =============== МИНИ-ПАСПОРТ СВЕРХУ ===============  
+  // =============== МИНИ-ПАСПОРТ СВЕРХУ ===============
   function renderMiniPassport(level) {
     const lvl = Number(level) || 0;
     qs('#passport-mini-label').textContent = `Уровень: ${lvl || '—'} / 12`;
@@ -1286,7 +1539,7 @@ function formatDateTime(input) {
     }
   }
 
-  // =============== ПАСПОРТ В РАЗДЕЛЕ ===============  
+  // =============== ПАСПОРТ В РАЗДЕЛЕ ===============
   function renderPassport(level, questsDone, nextLevel, nextGiftName) {
     const lvl = Number(level) || 0;
     const done = Number(questsDone) || lvl;
@@ -1315,7 +1568,7 @@ function formatDateTime(input) {
     }
   }
 
-  // =============== ПОДАРКИ ===============  
+  // =============== ПОДАРКИ ===============
   function renderGifts(gifts) {
     const container = qs('#gifts-container');
     container.innerHTML = '';
@@ -1574,7 +1827,7 @@ function renderQuests(quests) {
 }
 
 
-  // =============== ПРАЗДНИК ===============  
+  // =============== ПРАЗДНИК ===============
   function renderPartyFromParams(params) {
     const container = qs('#party-container');
 
@@ -1671,7 +1924,7 @@ function renderQuests(quests) {
   phone: window.__pandoroomPhone || null,
   timestamp: Date.now()
 });
-	  
+
         tg.sendData(JSON.stringify({
           action: 'prepay',
           source: 'party_card',
@@ -1732,7 +1985,7 @@ function renderQuests(quests) {
     return true;
   }
 
-  // =============== ЗАГРУЗКА ВСЕГО (бонусы/квесты/праздник) ===============  
+  // =============== ЗАГРУЗКА ВСЕГО (бонусы/квесты/праздник) ===============
   async function loadAll(phone, params) {
     window.__pandoroomPhone = phone || '';
 
@@ -1755,7 +2008,7 @@ function renderQuests(quests) {
     // 1) Паспорт + подарки + бонусы
     if (phone) {
       try {
-        const res = await fetch('https://pandoroom.tech/telegramm/gifts_proxy.php?phone=' + encodeURIComponent(phone));
+        const res = await fetch('gifts_proxy.php?phone=' + encodeURIComponent(phone));
         const data = await res.json();
 
         const bonus = data.bonus ?? null;
@@ -1794,7 +2047,7 @@ function renderQuests(quests) {
     // 2) Квесты
     if (phone) {
       try {
-        const res = await fetch('https://pandoroom.tech/telegramm/quests_proxy.php?phone=' + encodeURIComponent(phone));
+        const res = await fetch('quests_proxy.php?phone=' + encodeURIComponent(phone));
         const data = await res.json();
         if (Array.isArray(data)) {
           renderQuests(data);
@@ -1821,7 +2074,7 @@ function renderQuests(quests) {
       const renderedFromParams = renderPartyFromParams(params);
 
       if (!renderedFromParams && phone) {
-        const res = await fetch('https://pandoroom.tech/telegramm/party_proxy.php?phone=' + encodeURIComponent(phone));
+        const res = await fetch('party_proxy.php?phone=' + encodeURIComponent(phone));
         const data = await res.json();
 
         if (!data || !data.datas) {
@@ -1843,7 +2096,7 @@ function renderQuests(quests) {
     }
   }
 
-  // =============== ВКЛАДКИ ===============  
+  // =============== ВКЛАДКИ ===============
   function initTabs() {
     const tabs = qsa('.tab-btn');
     tabs.forEach(btn => {
@@ -1859,7 +2112,7 @@ function renderQuests(quests) {
     });
   }
 
-  // ======== ОТКРЫТЬ МАСТЕР БРОНИРОВАНИЯ ========  
+  // ======== ОТКРЫТЬ МАСТЕР БРОНИРОВАНИЯ ========
 function openBookingWizard() {
   const btnParty = document.querySelector('.tab-btn[data-tab="party"]');
   if (btnParty) {
@@ -1880,7 +2133,7 @@ function openBookingWizard() {
 }
 
 
-  // =============== КНОПКИ ДЕЙСТВИЙ + МОДАЛКА ===============  
+  // =============== КНОПКИ ДЕЙСТВИЙ + МОДАЛКА ===============
   function initActions() {
     const btnQuest = qs('#btn-want-quest');
     const btnEvent = qs('#btn-add-event');
@@ -1911,7 +2164,7 @@ if (btnQuest) {
         // Открываем мастер бронирования
         openBookingWizard();
 
-    
+
       });
     }
 
@@ -1995,8 +2248,8 @@ if (btnQuest) {
     }
   }
 
-  // ==================== BOOKING MASTER ====================  
-  const API_BOT_URL = 'https://pandoroom.tech/telegramm/bot.php';
+  // ==================== BOOKING MASTER ====================
+  const API_BOT_URL = (window.PANDOROOM_BOT_API || new URL('bot.php', window.location.href).toString());
 
   const bookingState = {
   name: '',
@@ -2007,7 +2260,7 @@ if (btnQuest) {
   adults: 0,
   hall: null,
   table: null,
-  quests: [],     
+  quests: [],
   menuItems: []
 };
 
@@ -2061,7 +2314,7 @@ if (btnQuest) {
   parts.push(`🪑 Стол: ${bookingState.table.label || bookingState.table.name || bookingState.table.id}`);
 }
 
-   
+
   if (bookingState.quests && bookingState.quests.length) {
   const questLines = bookingState.quests.map(q =>
     `${q.title || 'Квест'} в ${q.time || ''}`
@@ -2740,7 +2993,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         let total = 0;
-      
+
 if (Array.isArray(bookingState.quests)) {
   bookingState.quests.forEach(q => {
     if (q.price) total += Number(q.price) || 0;
@@ -2823,7 +3076,7 @@ alert('Заявка отправлена! Менеджер свяжется с �
           const text = await res.text();
           console.log('prechek.php response:', text);
 
-          
+
 
        if (window.Telegram && window.Telegram.WebApp) {
   const phoneRaw = window.__pandoroomPhone || '';
@@ -2883,7 +3136,7 @@ function initBookingMasterClose() {
   });
 }
 
-  // =============== СТАРТ ===============  
+  // =============== СТАРТ ===============
   document.addEventListener('DOMContentLoaded', () => {
     const params = getQueryParams();
     const phone = params.phone || '';
@@ -2902,5 +3155,52 @@ if (qs('#booking-master')) {
   }
   });
 </script>
+
+<script>
+(function(){
+  function qs(s){return document.querySelector(s)}
+  function qsa(s){return Array.from(document.querySelectorAll(s))}
+  function escapeHtml(v){return String(v??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]||m));}
+  const params=new URLSearchParams(location.search);
+  const phone=(params.get('phone')||'').replace(/\D+/g,'');
+  const name=(params.get('name')||'Гость Pandoroom').trim();
+
+  const heroName = qs('.hero-name') || qs('#user-name');
+  if (heroName) heroName.innerHTML = escapeHtml(name).replace(/\s+/,'<br>');
+  const heroPhone = qs('.hero-phone') || qs('#user-phone');
+  if (heroPhone) heroPhone.textContent = phone ? ('+'+phone) : 'Телефон не указан';
+
+  async function fetchJson(url){ const r=await fetch(url); return await r.json(); }
+
+  async function loadData(){
+    if(!phone) return;
+    try{
+      const gifts=await fetchJson('gifts_proxy.php?phone='+encodeURIComponent(phone));
+      const bonus=Number(gifts.bonus||0);
+      const level=Number(gifts.passport_level||0);
+      const gcount=Array.isArray(gifts.gifts)?gifts.gifts.length:0;
+      const b1=qs('.hero-bonus') || qs('#user-bonus');
+      if (b1) b1.textContent='Бонусы: '+bonus+' ₽';
+      const lvl=qs('.hero-right strong');
+      if(lvl) lvl.textContent='Уровень '+level+' / 12';
+      const stats=qsa('.stat strong');
+      if(stats.length>=3){stats[0].textContent=bonus+' ₽';stats[1].textContent=String(level);stats[2].textContent=String(gcount);}
+    }catch(e){}
+
+    try{
+      const quests=await fetchJson('quests_proxy.php?phone='+encodeURIComponent(phone));
+      if(Array.isArray(quests)){
+        const now=Date.now();
+        let upcoming=0,past=0;
+        quests.forEach(q=>{const d=Date.parse((q.data||q.date||'').replace(/(\d{2})\.(\d{2})\.(\d{4})/,'$3-$2-$1')+' '+(q.time||q.time_start||'')); if(!isNaN(d)&&d>=now) upcoming++; else past++;});
+        const stats=qsa('.stat strong');
+        if(stats.length>=6){stats[3].textContent=String(upcoming);stats[4].textContent=String(quests.length);stats[5].textContent=String(past);}
+      }
+    }catch(e){}
+  }
+  loadData();
+})();
+</script>
+
 </body>
 </html>

@@ -33,6 +33,7 @@ $botMessagesFile = __DIR__ . '/bot_messages.json';
 
 // Базовые URL API (основной + fallback после переезда)
 $orgApiBases = [
+    'https://pandoroom.tech/pandoroom-api/',
     'https://pandoroom.org/pandoroom-api/',
     'https://tgbotum145.ru/pandoroom-api/',
 ];
@@ -200,6 +201,52 @@ function tgGetFileUrlById($fileId)
     }
 
     return 'https://api.telegram.org/file/bot' . $token . '/' . $resp['result']['file_path'];
+}
+
+function buildCurrentScriptPublicBaseUrl()
+{
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if ($host === '') {
+        return '';
+    }
+    $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+    return $scheme . '://' . $host . ($scriptDir ?: '');
+}
+
+function cacheTelegramFileForWebChat($fileId, $originalName = 'file')
+{
+    $sourceUrl = tgGetFileUrlById($fileId);
+    if (!$sourceUrl) {
+        return null;
+    }
+
+    $binary = httpRequest($sourceUrl, null, [], 20);
+    if (!is_string($binary) || $binary === '') {
+        return null;
+    }
+
+    $uploadsDir = __DIR__ . '/webchat_data/uploads';
+    if (!is_dir($uploadsDir) && !@mkdir($uploadsDir, 0777, true) && !is_dir($uploadsDir)) {
+        return null;
+    }
+
+    $ext = strtolower(pathinfo((string)$originalName, PATHINFO_EXTENSION));
+    if ($ext === '') {
+        $ext = 'bin';
+    }
+    $name = 'tg_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $target = $uploadsDir . '/' . $name;
+    if (file_put_contents($target, $binary) === false) {
+        return null;
+    }
+
+    $base = buildCurrentScriptPublicBaseUrl();
+    if ($base === '') {
+        return null;
+    }
+
+    return $base . '/webchat_data/uploads/' . $name;
 }
 
 // Локальное хранилище исходящих сообщений бота клиенту
@@ -1116,38 +1163,60 @@ function getIikoCategoriesByPhone($phone) {
 function getEventInfoByPhone($phone) {
     if (!$phone) return null;
 
-    $payload = json_encode(['da' => (string)$phone], JSON_UNESCAPED_UNICODE);
+    $phoneRaw = trim((string)$phone);
+    $digits = preg_replace('/\D+/', '', $phoneRaw);
+    $phoneCandidates = [];
 
-    $res = null;
-    foreach ([
+    if ($digits !== '') {
+        $phoneCandidates[] = $digits;
+        if (strlen($digits) === 11 && ($digits[0] === '7' || $digits[0] === '8')) {
+            $phoneCandidates[] = substr($digits, 1); // часто API ждёт локальный 10-значный номер
+        }
+    }
+    $phoneCandidates[] = $phoneRaw;
+    $phoneCandidates = array_values(array_unique(array_filter($phoneCandidates, static function ($v) {
+        return is_string($v) && $v !== '';
+    })));
+
+    $endpoints = [
         'https://pandoroom.tech/drobmen.php',
         'https://tgbotum145.ru/drobmen.php',
-    ] as $drobmenUrl) {
-        $res = httpRequest(
-            $drobmenUrl,
-            $payload,
-            ['Content-Type: application/json'],
-            3
-        );
-        if (is_string($res) && $res !== '') {
-            break;
+    ];
+
+    $data = null;
+    $lastResponseForLog = '';
+
+    foreach ($phoneCandidates as $phoneCandidate) {
+        $payload = json_encode(['da' => $phoneCandidate], JSON_UNESCAPED_UNICODE);
+        foreach ($endpoints as $drobmenUrl) {
+            $res = httpRequest(
+                $drobmenUrl,
+                $payload,
+                ['Content-Type: application/json'],
+                4
+            );
+            if (!is_string($res) || $res === '') {
+                continue;
+            }
+
+            $lastResponseForLog = $res;
+
+            // Если вдруг вернуло HTML — значит ошибка/редирект
+            if (stripos($res, '<html') !== false) {
+                logMsg('DROBMEN HTML ERROR: phone=' . $phoneCandidate . ' URL=' . $drobmenUrl . ' RESP=' . substr($res, 0, 200));
+                continue;
+            }
+
+            $decoded = json_decode($res, true);
+            if (is_array($decoded) && !empty($decoded['datas'])) {
+                $data = $decoded;
+                break 2;
+            }
         }
     }
 
-    if (!is_string($res) || $res === '') {
-        logMsg('DROBMEN EMPTY OR ERROR');
-        return null;
-    }
-
-    // Если вдруг вернуло HTML — значит ошибка/редирект
-    if (stripos($res, '<html') !== false) {
-        logMsg('DROBMEN HTML ERROR: ' . substr($res, 0, 200));
-        return null;
-    }
-
-    $data = json_decode($res, true);
     if (!$data || empty($data['datas'])) {
-        logMsg('DROBMEN JSON DECODE OR EMPTY: ' . $res);
+        logMsg('DROBMEN JSON DECODE OR EMPTY. phone=' . $phoneRaw . ' tried=' . json_encode($phoneCandidates, JSON_UNESCAPED_UNICODE) . ' RESP=' . substr((string)$lastResponseForLog, 0, 300));
         return null;
     }
 
@@ -1197,9 +1266,48 @@ function getEventInfoByPhone($phone) {
     ];
 }
 
+function getEventInfoByPhoneViaPartyProxy($phone)
+{
+    $cleanPhone = preg_replace('/\D+/', '', (string)$phone);
+    if ($cleanPhone === '') {
+        return null;
+    }
+
+    foreach ([
+        'https://pandoroom.tech/telegramm/party_proxy.php',
+        'https://tgbotum145.ru/telegramm/party_proxy.php',
+    ] as $proxyUrl) {
+        $resp = httpRequest($proxyUrl . '?phone=' . urlencode($cleanPhone), null, [], 8);
+        if (!is_string($resp) || trim($resp) === '') {
+            continue;
+        }
+        if (stripos($resp, '<html') !== false) {
+            continue;
+        }
+
+        $data = json_decode($resp, true);
+        if (!is_array($data) || empty($data['datas'])) {
+            continue;
+        }
+
+        return [
+            'date'      => $data['datas'] ?? '',
+            'time_from' => $data['start'] ?? '',
+            'time_to'   => $data['stop'] ?? '',
+            'hall'      => trim(($data['zal'] ?? '') . ' ' . ($data['stol'] ?? '')),
+            'branch'    => $data['dep'] ?? '',
+        ];
+    }
+
+    return null;
+}
+
 function buildInvitationLink($phone)
 {
     $event = getEventInfoByPhone($phone);
+    if (!$event) {
+        $event = getEventInfoByPhoneViaPartyProxy($phone);
+    }
     if (!$event) {
         return ['error' => 'Не найдено ближайшее мероприятие для клиента.'];
     }
@@ -1242,8 +1350,25 @@ function buildInvitationLink($phone)
         'tel'  => $cleanPhone,
     ];
 
-    $url = 'https://pandoroom.org/priglashu.php?' . http_build_query($params);
-    $resp = httpRequest($url, null, [], 7);
+    $resp = null;
+    foreach ([
+        'https://pandoroom.tech/priglashu.php',
+        'https://pandoroom.org/priglashu.php',
+        'https://tgbotum145.ru/priglashu.php',
+    ] as $inviteBaseUrl) {
+        $url = $inviteBaseUrl . '?' . http_build_query($params);
+        $candidate = httpRequest($url, null, [], 8);
+        if (!is_string($candidate) || trim($candidate) === '') {
+            logMsg('INVITE LINK EMPTY: ' . $url);
+            continue;
+        }
+        if (stripos($candidate, '<html') !== false) {
+            logMsg('INVITE LINK HTML: ' . $url . ' RESP=' . substr($candidate, 0, 200));
+            continue;
+        }
+        $resp = $candidate;
+        break;
+    }
 
     if (!is_string($resp) || trim($resp) === '') {
         return ['error' => 'Не удалось получить ссылку приглашения.'];
@@ -2374,6 +2499,8 @@ function sendMessageToWebChatSession($sessionId, $text, array $extra = [])
         'type' => (string)($extra['type'] ?? 'text'),
         'text' => (string)$text,
         'image_url' => (string)($extra['image_url'] ?? ''),
+        'file_url' => (string)($extra['file_url'] ?? ''),
+        'file_name' => (string)($extra['file_name'] ?? ''),
         'created_at' => time(),
     ];
 
@@ -3394,8 +3521,19 @@ function handleManagerMessage($message) {
                 'image_url' => $photoUrl ?: '',
             ]);
         } elseif ($hasDocument) {
+            $doc = $message['document'];
+            $fileId = $doc['file_id'] ?? null;
+            $docName = $doc['file_name'] ?? 'document';
+            $docUrl = cacheTelegramFileForWebChat($fileId, $docName);
+            if (!$docUrl) {
+                $docUrl = tgGetFileUrlById($fileId);
+            }
             $textForWeb = "💬 Оператор:\n" . ($caption !== '' ? $caption : '[документ от менеджера]');
-            $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb);
+            $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb, [
+                'type' => 'document',
+                'file_url' => $docUrl ?: '',
+                'file_name' => $docName,
+            ]);
         } else {
             $textForWeb = "💬 Оператор:\n" . $rawText;
             $webResp = sendMessageToWebChatSession($webSessionId, $textForWeb);
